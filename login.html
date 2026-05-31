@@ -226,22 +226,26 @@
             <div class="form-group">
                 <label for="password">Password:</label>
                 <div class="password-container">
-                  <div class="password-box">
                     <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      placeholder="Enter your password"
-                      required
-                      autocomplete="current-password"
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        required
+                        autocomplete="current-password"
                     >
-                    <button type="button" class="toggle-password" aria-label="Show password" title="Show password">
-                      <!-- Closed eye (hidden) -->
-                      <svg class="eye-closed" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
-                      <!-- Open eye (visible) -->
-                      <svg class="eye-open" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+                    <button type="button" class="password-toggle" aria-label="Show password" title="Show password">
+                        <!-- Show password (open eye) - initially hidden -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <!-- Hide password (closed eye with slash) - initially visible -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.94M9.88 9.88A3 3 0 0 0 12 15a3 3 0 0 0 2.12-5.12"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
                     </button>
-                  </div>
                 </div>
             </div>
 
@@ -253,111 +257,6 @@
         </div>
     </div>
 
-    <script>
-        // Initialize CSRF token on page load
-        function initializeCSRF() {
-            fetch('get_csrf_token.php')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.token) {
-                        document.getElementById('csrf_token').value = data.token;
-                    }
-                })
-                .catch(error => console.error('Failed to get CSRF token:', error));
-        }
-
-        // Form submission
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const csrfToken = document.getElementById('csrf_token').value;
-            const messageDiv = document.getElementById('message');
-
-            // Basic validation
-            if (!username || !password) {
-                showMessage('Please enter both username and password', 'error');
-                return;
-            }
-
-            if (!csrfToken) {
-                showMessage('Security token missing. Please refresh the page.', 'error');
-                return;
-            }
-
-            // Send to server
-            const formData = new FormData();
-            formData.append('username', username);
-            formData.append('password', password);
-            formData.append('csrf_token', csrfToken);
-
-            // Disable button during submission
-            const submitBtn = this.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Logging in...';
-
-            fetch('login.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showMessage('Login successful! Redirecting...', 'success');
-                    // Redirect to home page after 1.5 seconds
-                    setTimeout(() => {
-                        window.location.href = 'index.php';
-                    }, 1500);
-                } else {
-                    showMessage(data.error || 'Login failed', 'error');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Login';
-                    // Re-fetch CSRF token after failed attempt
-                    initializeCSRF();
-                }
-            })
-            .catch(error => {
-                showMessage('An error occurred. Please try again.', 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Login';
-                console.error('Error:', error);
-            });
-        });
-
-        function showMessage(message, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.textContent = message;
-            messageDiv.className = type;
-        }
-
-        function initPasswordToggle() {
-            const toggle = document.querySelector('.toggle-password');
-            const input = document.getElementById('password');
-            if (!toggle || !input) return;
-            toggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                const isHidden = input.type === 'password';
-                input.type = isHidden ? 'text' : 'password';
-                if (isHidden) {
-                    toggle.classList.add('show');
-                    toggle.setAttribute('aria-label', 'Hide password');
-                    toggle.title = 'Hide password';
-                } else {
-                    toggle.classList.remove('show');
-                    toggle.setAttribute('aria-label', 'Show password');
-                    toggle.title = 'Show password';
-                }
-                // quick tactile feedback without long animation
-                toggle.style.transform = 'translateY(-50%) scale(1.05)';
-                setTimeout(()=> toggle.style.transform = '', 120);
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeCSRF();
-            initPasswordToggle();
-        });
-    </script>
+    <script src="login.js"></script>
 </body>
 </html>

@@ -12,10 +12,10 @@ These scripts provide command-line tools for managing and verifying XML data fil
 
 ### Files:
 
-| Script | Purpose | Use Case |
-|--------|---------|----------|
-| `xml_handler.py` | Add/Edit/Delete/Archive tasks and users | Bulk operations, manual corrections |
-| `verify_sync.py` | Verify XML consistency | QA, troubleshooting, integrity checks |
+| Script           | Purpose                                 | Use Case                              |
+| ---------------- | --------------------------------------- | ------------------------------------- |
+| `xml_handler.py` | Add/Edit/Delete/Archive tasks and users | Bulk operations, manual corrections   |
+| `verify_sync.py` | Verify XML consistency                  | QA, troubleshooting, integrity checks |
 
 ---
 
@@ -43,11 +43,13 @@ python3 xml_handler.py add-task <id> <user_id> <title> <description> <status>
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py add-task 100 5 "Buy groceries" "Milk, eggs, bread" pending
 ```
 
 **Parameters:**
+
 - `<id>`: Unique task number (integer, e.g., 100)
 - `<user_id>`: Owner user ID (integer, e.g., 5)
 - `<title>`: Task name (string, max 255 chars)
@@ -65,11 +67,13 @@ python3 xml_handler.py edit-task <id> [title] [description] [status]
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py edit-task 100 "Buy groceries" "Milk, eggs, bread, butter" completed
 ```
 
 **Parameters:**
+
 - `<id>`: Task ID to edit (required)
 - `[title]`: New title (optional, blank = keep old)
 - `[description]`: New description (optional)
@@ -86,6 +90,7 @@ python3 xml_handler.py delete-task <id>
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py delete-task 100
 ```
@@ -101,11 +106,13 @@ python3 xml_handler.py archive-task <id>
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py archive-task 100
 ```
 
 **Effect:**
+
 - Removes task from `tasks.xml`
 - Adds task to `archive_tasks.xml`
 - Adds `archived_at` timestamp
@@ -119,13 +126,15 @@ python3 xml_handler.py add-user <id> <username> <password_hash> [role]
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py add-user 10 "john_doe" "$2y$10$..." user
 ```
 
 **Parameters:**
+
 - `<id>`: User ID (integer)
-- `<username>`: Username (3-50 chars, letters/numbers/_- only)
+- `<username>`: Username (3-50 chars, letters/numbers/\_- only)
 - `<password_hash>`: Bcrypt hash from database (starts with `$2y$`)
 - `[role]`: "user" (default) or "admin"
 
@@ -140,6 +149,7 @@ python3 xml_handler.py validate <file>
 ```
 
 **Example:**
+
 ```bash
 python3 xml_handler.py validate tasks.xml
 python3 xml_handler.py validate users.xml
@@ -147,6 +157,7 @@ python3 xml_handler.py validate archive_tasks.xml
 ```
 
 **Checks:**
+
 - XML is well-formed (parseable)
 - Required fields present
 - Data types valid
@@ -163,11 +174,13 @@ python3 verify_sync.py
 ```
 
 **Checks all XML files:**
+
 - `users.xml`
 - `tasks.xml`
 - `archive_tasks.xml`
 
 **Validates:**
+
 - Correct XML structure
 - No duplicate IDs
 - Required fields present
@@ -189,6 +202,7 @@ python3 verify_sync.py archive     # Check archive_tasks.xml only
 ### Example Output
 
 **Success:**
+
 ```
 ✓ users.xml: 5 users verified
 ✓ tasks.xml: 42 tasks verified
@@ -203,6 +217,7 @@ XML SYNC VERIFICATION REPORT
 ```
 
 **With Issues:**
+
 ```
 ✗ Duplicate task ID: 100
 ✗ Task 50: Missing status
@@ -286,11 +301,13 @@ Run weekly integrity check:
 ## Performance Notes
 
 ### Memory Usage:
+
 - `xml_handler.py`: ~5-10 MB (entire XML file loaded into RAM)
 - `verify_sync.py`: ~5-10 MB (reads and validates XML)
 - Both scale linearly with file size
 
 ### Speed:
+
 - Add task: ~50-100ms
 - Edit task: ~50-100ms
 - Delete task: ~50-100ms
@@ -350,17 +367,20 @@ python3 xml_handler.py validate tasks.xml
 ⚠️ **Important:** These scripts directly modify XML files:
 
 1. **Backup first:** Always backup XML files before running scripts
+
    ```bash
    cp tasks.xml tasks.xml.backup
    cp users.xml users.xml.backup
    ```
 
 2. **Restricted access:** Only run scripts as web server user or admin
+
    ```bash
    chmod 750 xml_handler.py verify_sync.py
    ```
 
 3. **Verify after:** Always verify after modifications
+
    ```bash
    python3 verify_sync.py
    ```
@@ -376,6 +396,7 @@ python3 xml_handler.py validate tasks.xml
 ### XML Structure
 
 **tasks.xml:**
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <tasks>
@@ -391,6 +412,7 @@ python3 xml_handler.py validate tasks.xml
 ```
 
 **users.xml:**
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <users>

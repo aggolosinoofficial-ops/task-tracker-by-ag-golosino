@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+    <!-- Root element for deleted tasks collection -->
+    <xs:element name="deleted_tasks">
+        <xs:complexType>
+            <xs:sequence>
+                <!-- Allows zero or more deleted task elements -->
+                <xs:element name="deleted_task" type="deletedTaskType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- Deleted task element definition with metadata -->
+    <xs:complexType name="deletedTaskType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:positiveInteger"/>
+            <xs:element name="user_id" type="xs:positiveInteger"/>
+            <xs:element name="title" type="xs:string"/>
+            <xs:element name="description" type="xs:string"/>
+            <xs:element name="status" type="xs:string"/>
+            <xs:element name="created_at" type="xs:dateTime"/>
+            <xs:element name="deleted_at" type="xs:dateTime"/>
+        </xs:sequence>
+    </xs:complexType>
+
+</xs:schema>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - To-Do App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #999;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .link-section {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .link-section a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .link-section a:hover {
+            text-decoration: underline;
+        }
+
+        /* Password container occupying 20% width as requested */
+        .password-container {
+            width: 20%; /* 20% of the text area width */
+            min-width: 220px;
+            max-width: 260px;
+        }
+
+        .password-box {
+            position: relative;
+            width: 100%;
+            height: 46px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            background: #f8fafc;
+            overflow: hidden;
+        }
+
+        .password-box input[type="password"],
+        .password-box input[type="text"] {
+            border: none;
+            outline: none;
+            padding: 10px;
+            padding-right: 42px;
+            width: calc(100% - 42px);
+            font-size: 14px;
+            background: transparent;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            transition: background 0.12s ease, transform 0.12s ease;
+        }
+
+        .toggle-password:focus { outline:none; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+
+        .toggle-password:hover { background: rgba(99,102,241,0.06); transform: translateY(-50%) scale(1.03); }
+
+        .toggle-password svg { width:18px; height:18px; fill:#374151; }
+
+        /* show/open state toggled via JS by adding .show */
+        .toggle-password .eye-open { display:none; }
+        .toggle-password.show .eye-open { display:inline-block; }
+        .toggle-password.show .eye-closed { display:none; }
+
+        #message {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        #message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        #message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .demo-info {
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Login to your To-Do App account</p>
+        <div id="message"></div>
+        
+        <form id="loginForm">
+            <input type="hidden" id="csrf_token" name="csrf_token" value="">
+            
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    placeholder="Enter your username" 
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <div class="password-container">
+                  <div class="password-box">
+                    <input
+                      type="password"
+                      id="password"
+                      name="password"
+                      placeholder="Enter your password"
+                      required
+                      autocomplete="current-password"
+                    >
+                    <button type="button" class="toggle-password" aria-label="Show password" title="Show password">
+                      <!-- Closed eye (hidden) -->
+                      <svg class="eye-closed" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+                      <!-- Open eye (visible) -->
+                      <svg class="eye-open" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+                    </button>
+                  </div>
+                </div>
+            </div>
+
+            <button type="submit">Login</button>
+        </form>
+
+        <div class="link-section">
+            Don't have an account? <a href="register.html">Register here</a>
+        </div>
+    </div>
+
+    <script>
+        // Initialize CSRF token on page load
+        function initializeCSRF() {
+            fetch('get_csrf_token.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.token) {
+                        document.getElementById('csrf_token').value = data.token;
+                    }
+                })
+                .catch(error => console.error('Failed to get CSRF token:', error));
+        }
+
+        // Form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const csrfToken = document.getElementById('csrf_token').value;
+            const messageDiv = document.getElementById('message');
+
+            // Basic validation
+            if (!username || !password) {
+                showMessage('Please enter both username and password', 'error');
+                return;
+            }
+
+            if (!csrfToken) {
+                showMessage('Security token missing. Please refresh the page.', 'error');
+                return;
+            }
+
+            // Send to server
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('csrf_token', csrfToken);
+
+            // Disable button during submission
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Logging in...';
+
+            fetch('login.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Login successful! Redirecting...', 'success');
+                    // Redirect to home page after 1.5 seconds
+                    setTimeout(() => {
+                        window.location.href = 'index.php';
+                    }, 1500);
+                } else {
+                    showMessage(data.error || 'Login failed', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Login';
+                    // Re-fetch CSRF token after failed attempt
+                    initializeCSRF();
+                }
+            })
+            .catch(error => {
+                showMessage('An error occurred. Please try again.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Login';
+                console.error('Error:', error);
+            });
+        });
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = type;
+        }
+
+        function initPasswordToggle() {
+            const toggle = document.querySelector('.toggle-password');
+            const input = document.getElementById('password');
+            if (!toggle || !input) return;
+            toggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                const isHidden = input.type === 'password';
+                input.type = isHidden ? 'text' : 'password';
+                if (isHidden) {
+                    toggle.classList.add('show');
+                    toggle.setAttribute('aria-label', 'Hide password');
+                    toggle.title = 'Hide password';
+                } else {
+                    toggle.classList.remove('show');
+                    toggle.setAttribute('aria-label', 'Show password');
+                    toggle.title = 'Show password';
+                }
+                // quick tactile feedback without long animation
+                toggle.style.transform = 'translateY(-50%) scale(1.05)';
+                setTimeout(()=> toggle.style.transform = '', 120);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCSRF();
+            initPasswordToggle();
+        });
+    </script>
+</body>
+</html>

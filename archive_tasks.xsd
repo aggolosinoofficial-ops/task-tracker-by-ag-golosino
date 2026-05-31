@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+    <!-- Root element for archived tasks collection -->
+    <xs:element name="archive_tasks">
+        <xs:complexType>
+            <xs:sequence>
+                <!-- Allows zero or more archived task elements -->
+                <xs:element name="archive_task" type="archiveTaskType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- Archived task element definition with metadata -->
+    <xs:complexType name="archiveTaskType">
+        <xs:sequence>
+            <!-- Unique archive record ID (auto-generated) -->
+            <xs:element name="id" type="xs:positiveInteger"/>
+            <!-- User ID who owns this archived task -->
+            <xs:element name="user_id" type="xs:positiveInteger"/>
+            <!-- Task title/name (1-255 characters required) -->
+            <xs:element name="title">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="1"/>
+                        <xs:maxLength value="255"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+            <!-- Task description/details (0-1000 characters allowed) -->
+            <xs:element name="description">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="0"/>
+                        <xs:maxLength value="1000"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+            <!-- Final status when archived (pending/completed/in_progress/cancelled) -->
+            <xs:element name="status" type="statusType"/>
+            <!-- When the original task was created -->
+            <xs:element name="created_at" type="xs:dateTime"/>
+            <!-- When the task was archived/deleted -->
+            <xs:element name="archived_at" type="xs:dateTime"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Status enumeration - same as tasks for consistency -->
+    <!-- Defines all valid task statuses that can be archived -->
+    <xs:simpleType name="statusType">
+        <xs:restriction base="xs:string">
+            <!-- Task has not been started -->
+            <xs:enumeration value="pending"/>
+            <!-- Task has been completed -->
+            <xs:enumeration value="completed"/>
+            <!-- Task is currently in progress -->
+            <xs:enumeration value="in_progress"/>
+            <!-- Task was cancelled/discarded -->
+            <xs:enumeration value="cancelled"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>

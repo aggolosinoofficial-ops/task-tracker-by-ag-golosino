@@ -1,22 +1,53 @@
 <?php
 /**
  * Admin Account Setup Script
- * Create or reset the admin account with specified credentials
- * Run this ONCE to set up admin credentials
+ * 
+ * PURPOSE: Initialize or reset the admin account during system setup
+ * This script should be run ONCE during initial deployment
+ * 
+ * FUNCTIONALITY:
+ * 1. Creates users table if it doesn't exist
+ * 2. Creates or updates admin account with secure credentials
+ * 3. Adds role column to track admin vs user privileges
+ * 4. Syncs admin to XML backup
+ * 5. Initializes CSRF token for admin first login
+ * 
+ * SECURITY:
+ * - Uses bcrypt hashing (cost=10) for low-RAM optimization
+ * - Sets role='admin' to grant administrative privileges
+ * - Pre-generates CSRF token for immediate use after login
+ * 
+ * INSTRUCTIONS:
+ * 1. Access this file via browser: http://localhost/path/to/admin_setup.php
+ * 2. Review admin credentials displayed on screen
+ * 3. Save credentials in a secure location (password manager)
+ * 4. Delete or rename this file after setup
+ * 5. Log in with admin credentials at login.html
  */
 
 include 'config.php';
 include 'db.php';
+include 'xml_sync_handler.php';
 
 header('Content-Type: text/html; charset=UTF-8');
 
 $setup_complete = false;
 $admin_username = 'admin123';
 $admin_password = 'Admin_123';
+$admin_id = null;
 $messages = [];
 
 try {
-    // Create users table if it doesn't exist
+    /**
+     * SETUP: Create users table if not exists
+     * Defines schema with all required columns:
+     * - id: unique identifier (primary key)
+     * - username: unique login name
+     * - password_hash: bcrypt hashed password
+     * - role: 'admin' or 'user' (controls access level)
+     * - created_at: account creation timestamp
+     * - Index on username for fast login lookups
+     */
     $sql_users = "CREATE TABLE IF NOT EXISTS " . DB_NAME . "." . DB_TABLE_USERS . " (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -32,10 +63,19 @@ try {
         throw new Exception("Error creating users table: " . $conn->error);
     }
 
-    // Hash the password using bcrypt
+    /**
+     * SECURITY: Hash admin password using bcrypt
+     * cost=10 = ~50 iterations (2^10)
+     * Takes ~200-300ms per hash = defeats brute force without being too slow for login
+     * Cost can be increased later if needed without rehashing (password_needs_rehash() function)
+     */
     $password_hash = password_hash($admin_password, PASSWORD_BCRYPT, ['cost' => 10]);
 
-    // Check if admin already exists
+    /**
+     * SETUP: Check if admin account already exists
+     * Prepared statement prevents SQL injection
+     * Allows update of existing admin or creation of new one
+     */
     $stmt = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ?");
     if (!$stmt) {
         throw new Exception("Database error: " . $conn->error);
@@ -46,8 +86,15 @@ try {
     $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
-        // Update existing admin account
+        /**
+         * UPDATE: Admin already exists - reset credentials
+         * Updates password_hash and ensures role='admin'
+         * Useful for recovery or credential reset procedures
+         */
+        $admin_row = $result->fetch_assoc();
+        $admin_id = $admin_row['id'];
         $stmt->close();
+
         $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_USERS . " 
                                 SET password_hash = ?, role = 'admin' 
                                 WHERE username = ?");
@@ -63,7 +110,11 @@ try {
         }
         $stmt->close();
     } else {
-        // Create new admin account
+        /**
+         * CREATE: Admin doesn't exist - create new account
+         * Sets role='admin' to give full system access
+         * created_at timestamp set by MySQL automatically
+         */
         $stmt->close();
         $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_USERS . " 
                                 (username, password_hash, role, created_at) 
@@ -74,6 +125,7 @@ try {
 
         $stmt->bind_param("ss", $admin_username, $password_hash);
         if ($stmt->execute()) {
+            $admin_id = $stmt->insert_id;
             $messages[] = "✓ Admin account created successfully";
         } else {
             throw new Exception("Error creating admin account: " . $stmt->error);
@@ -81,7 +133,12 @@ try {
         $stmt->close();
     }
 
-    // Add role column if it doesn't exist
+    /**
+     * SETUP: Ensure role column exists
+     * Checks INFORMATION_SCHEMA to see if column already exists
+     * Only adds if missing (prevents error on re-runs)
+     * Role column is essential for admin vs user distinction
+     */
     $check_role = $conn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
                                 WHERE TABLE_NAME='" . DB_TABLE_USERS . "' 
                                 AND COLUMN_NAME='role' 
@@ -96,13 +153,41 @@ try {
         }
     }
 
+    /**
+     * BACKUP: Sync admin account to XML users file
+     * Creates backup copy of admin account in users.xml
+     * Ensures data consistency between database and XML
+     * If database fails, admin data can be recovered from XML
+     */
+    if ($admin_id) {
+        $sync = getXMLSyncHandler();
+        $sync->syncUserToXML($admin_id, $admin_username, $password_hash, 'admin', date('Y-m-d H:i:s'));
+        $messages[] = "✓ Admin account synced to XML backup";
+    }
+
+    /**
+     * SECURITY: Initialize CSRF token for admin
+     * Generates random token for session
+     * Token stored in $_SESSION (server-side only)
+     * Ready for immediate use when admin logs in
+     * Prevents unauthorized form submissions
+     */
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+    $_SESSION['csrf_token_time'] = time();
+    $messages[] = "✓ CSRF token generated for secure form handling";
+
     $setup_complete = true;
 
 } catch (Exception $e) {
     $messages[] = "✗ " . $e->getMessage();
 }
 
-$conn->close();
+if ($conn) {
+    $conn->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

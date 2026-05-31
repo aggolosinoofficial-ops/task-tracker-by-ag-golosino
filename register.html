@@ -48,6 +48,7 @@
             font-weight: 500;
         }
 
+        /* OPTIMIZATION: Unified input styling with consistent width/padding */
         input[type="text"],
         input[type="password"] {
             width: 100%;
@@ -56,6 +57,7 @@
             border-radius: 4px;
             font-size: 14px;
             transition: border-color 0.3s;
+            box-sizing: border-box;
         }
 
         input[type="text"]:focus,
@@ -63,6 +65,45 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Password field container for eye toggle button */
+        .password-field-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .password-field-wrapper input[type="password"],
+        .password-field-wrapper input[type="text"] {
+            width: 100%;
+            padding-right: 40px;
+        }
+
+        /* Eye icon button styling */
+        .eye-toggle-btn {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #667eea;
+            transition: color 0.2s;
+        }
+
+        .eye-toggle-btn:hover {
+            color: #764ba2;
+        }
+
+        /* SVG icon sizing */
+        .eye-toggle-btn svg {
+            width: 18px;
+            height: 18px;
         }
 
         button {
@@ -103,6 +144,7 @@
             text-decoration: underline;
         }
 
+        /* Message/notification styling */
         #message {
             padding: 12px;
             border-radius: 4px;
@@ -126,6 +168,7 @@
             display: block;
         }
 
+        /* Password strength requirements checker */
         .password-requirements {
             margin-top: 10px;
             padding: 10px;
@@ -176,14 +219,24 @@
 
             <div class="form-group">
                 <label for="password">Password:</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    name="password" 
-                    placeholder="Enter password" 
-                    required
-                    minlength="8"
-                >
+                <div class="password-field-wrapper">
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        placeholder="Enter password" 
+                        required
+                        minlength="8"
+                    >
+                    <!-- Eye toggle button - SVG icon for show/hide password -->
+                    <button type="button" class="eye-toggle-btn" data-target="password" title="Show/Hide password">
+                        <svg id="eye-icon-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+                <!-- Password strength requirements display -->
                 <div class="password-requirements">
                     <strong>Password must have:</strong>
                     <ul>
@@ -197,13 +250,22 @@
 
             <div class="form-group">
                 <label for="confirmPassword">Confirm Password:</label>
-                <input 
-                    type="password" 
-                    id="confirmPassword" 
-                    name="confirm_password" 
-                    placeholder="Confirm password" 
-                    required
-                >
+                <div class="password-field-wrapper">
+                    <input 
+                        type="password" 
+                        id="confirmPassword" 
+                        name="confirm_password" 
+                        placeholder="Confirm password" 
+                        required
+                    >
+                    <!-- Eye toggle button for confirm password -->
+                    <button type="button" class="eye-toggle-btn" data-target="confirmPassword" title="Show/Hide password">
+                        <svg id="eye-icon-confirmPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <button type="submit">Register</button>
@@ -215,6 +277,7 @@
     </div>
 
     <script>
+        // Password validation requirements configuration
         const PASSWORD_REQUIREMENTS = {
             length: 8,
             uppercase: true,
@@ -222,7 +285,10 @@
             special: true
         };
 
-        // Initialize CSRF token on page load
+        /**
+         * Initialize CSRF token by fetching from server
+         * SECURITY: Ensures all forms have a valid CSRF token to prevent cross-site attacks
+         */
         function initializeCSRF() {
             fetch('get_csrf_token.php')
                 .then(response => response.json())
@@ -234,12 +300,46 @@
                 .catch(error => console.error('Failed to get CSRF token:', error));
         }
 
-        // Real-time password validation
+        /**
+         * Toggle password visibility - shows/hides password text
+         * OPTIMIZATION: Uses event delegation for cleaner code
+         */
+        function setupPasswordToggle() {
+            // Get all eye toggle buttons
+            const eyeToggleButtons = document.querySelectorAll('.eye-toggle-btn');
+            
+            eyeToggleButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault(); // Prevent form submission
+                    
+                    const targetId = this.dataset.target;
+                    const inputField = document.getElementById(targetId);
+                    const iconElement = document.getElementById('eye-icon-' + targetId);
+                    
+                    // Toggle between password and text input types
+                    if (inputField.type === 'password') {
+                        inputField.type = 'text';
+                        // Change eye icon to indicate password is visible (eye-slash icon would be used in production)
+                        iconElement.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+                    } else {
+                        inputField.type = 'password';
+                        // Change back to regular eye icon
+                        iconElement.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+                    }
+                });
+            });
+        }
+
+        // Real-time password validation as user types
         const passwordInput = document.getElementById('password');
         passwordInput.addEventListener('input', function() {
             validatePassword(this.value);
         });
 
+        /**
+         * Validate password strength in real-time
+         * Updates UI to show which requirements are met
+         */
         function validatePassword(password) {
             const checks = {
                 'req-length': password.length >= PASSWORD_REQUIREMENTS.length,
@@ -248,6 +348,7 @@
                 'req-special': /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
             };
 
+            // Update UI for each requirement
             for (const [id, passed] of Object.entries(checks)) {
                 const element = document.getElementById(id);
                 if (passed) {
@@ -262,7 +363,7 @@
             }
         }
 
-        // Form submission
+        // Form submission handler
         document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -272,7 +373,7 @@
             const csrfToken = document.getElementById('csrf_token').value;
             const messageDiv = document.getElementById('message');
 
-            // Client-side validation
+            // Client-side validation - verify all requirements
             if (username.length < 3) {
                 showMessage('Username must be at least 3 characters long', 'error');
                 return;
@@ -308,18 +409,19 @@
                 return;
             }
 
-            // Send to server
+            // Prepare form data for POST request
             const formData = new FormData();
             formData.append('username', username);
             formData.append('password', password);
             formData.append('confirm_password', confirmPassword);
             formData.append('csrf_token', csrfToken);
 
-            // Disable button during submission
+            // Disable button to prevent double submission
             const submitBtn = this.querySelector('button[type="submit"]');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Registering...';
 
+            // Send registration request to server
             fetch('register.php', {
                 method: 'POST',
                 body: formData
@@ -335,18 +437,21 @@
                     showMessage(data.error || 'Registration failed', 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Register';
-                    initializeCSRF();
+                    initializeCSRF(); // Refresh CSRF token on error
                 }
             })
             .catch(error => {
                 showMessage('An error occurred. Please try again.', 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Register';
-                initializeCSRF();
+                initializeCSRF(); // Refresh CSRF token on error
                 console.error('Error:', error);
             });
         });
 
+        /**
+         * Display message to user (success or error)
+         */
         function showMessage(message, type) {
             const messageDiv = document.getElementById('message');
             messageDiv.textContent = message;
@@ -354,7 +459,10 @@
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', initializeCSRF);
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCSRF();        // Get CSRF token from server
+            setupPasswordToggle();   // Setup eye toggle buttons
+        });
     </script>
 </body>
 </html>

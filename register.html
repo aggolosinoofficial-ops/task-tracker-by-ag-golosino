@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - To-Do App</title>
+    <title>Register - Task Tracker</title>
     <style>
         * {
             margin: 0;
@@ -22,91 +22,95 @@
         }
 
         .container {
-            background-color: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            background: white;
+            padding: 48px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
         }
 
         h1 {
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 28px;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 32px;
+            font-size: 15px;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+            color: #4a5568;
+            font-weight: 600;
+            font-size: 14px;
         }
 
-        /* Unified input styling with consistent width/padding */
         input[type="text"],
         input[type="password"] {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-            box-sizing: border-box;
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            font-family: inherit;
         }
 
         input[type="text"]:focus,
         input[type="password"]:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: #fafbfc;
         }
 
-        /* Password field container for eye toggle button positioning */
         .password-container {
             position: relative;
         }
 
         .password-container input {
-            width: 100%;
-            padding-right: 40px; /* Space for icon */
-            box-sizing: border-box;
+            padding-right: 44px;
         }
 
-        /* Password toggle button - positioned absolutely inside container */
         .password-toggle {
             position: absolute;
-            right: 10px;
+            right: 12px;
             top: 50%;
             transform: translateY(-50%);
-            cursor: pointer;
             background: none;
             border: none;
-            padding: 4px 8px;
+            cursor: pointer;
+            padding: 4px;
             display: flex;
-            align-items: right;
-            justify-content: right;
-            color: #667eea;
-            transition: color 0.2s ease;
+            align-items: center;
+            justify-content: center;
+            color: #a0aec0;
+            transition: all 0.2s ease;
         }
 
         .password-toggle:hover {
-            color: #764ba2;
+            color: #667eea;
         }
 
-        /* SVG icon sizing within toggle button */
         .password-toggle svg {
             width: 20px;
             height: 20px;
             stroke: currentColor;
+            stroke-width: 2;
         }
 
-        /* SVG visibility toggle - first SVG shows by default, second shows when .show class added */
         .password-toggle svg:first-of-type {
             display: block;
         }
@@ -123,32 +127,127 @@
             display: block;
         }
 
-
-        button {
+        button[type="submit"] {
             width: 100%;
             padding: 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
+            margin-top: 8px;
         }
 
-        button:hover {
+        button[type="submit"]:hover {
             transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(102, 126, 234, 0.3);
         }
 
-        button:active {
+        button[type="submit"]:active {
             transform: translateY(0);
+        }
+
+        button[type="submit"]:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: none;
+            text-align: center;
+            font-weight: 500;
+            font-size: 14px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #message.success {
+            background-color: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+            display: block;
+        }
+
+        #message.error {
+            background-color: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+            display: block;
+        }
+
+        /* Password strength requirements display with real-time feedback */
+        .password-requirements {
+            margin-top: 10px;
+            padding: 12px 14px;
+            background-color: #f7fafc;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #4a5568;
+        }
+
+        .password-requirements strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .password-requirements ul {
+            margin: 0;
+            padding-left: 20px;
+            list-style: none;
+        }
+
+        .requirement {
+            margin: 4px 0;
+            padding-left: 24px;
+            position: relative;
+            font-size: 12px;
+        }
+
+        .requirement::before {
+            content: '○';
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .requirement.met {
+            color: #22863a;
+        }
+
+        .requirement.met::before {
+            content: '✓';
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .requirement.unmet {
+            color: #6a737d;
         }
 
         .link-section {
             text-align: center;
-            margin-top: 20px;
-            color: #666;
+            margin-top: 24px;
+            color: #718096;
             font-size: 14px;
         }
 
@@ -156,107 +255,51 @@
             color: #667eea;
             text-decoration: none;
             font-weight: 600;
+            transition: color 0.2s ease;
         }
 
         .link-section a:hover {
-            text-decoration: underline;
-        }
-
-        /* Message/notification styling */
-        #message {
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            display: none;
-            text-align: center;
-            font-weight: 500;
-        }
-
-        #message.success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            display: block;
-        }
-
-        #message.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            display: block;
-        }
-
-        /* Password strength requirements display with real-time feedback */
-        .password-requirements {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-left: 3px solid #667eea;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .password-requirements ul {
-            margin-left: 20px;
-            margin-top: 5px;
-        }
-
-        .requirement {
-            margin: 3px 0;
-        }
-
-        .requirement.met {
-            color: #28a745;
-        }
-
-        .requirement.unmet {
-            color: #dc3545;
+            color: #764ba2;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Create Account</h1>
+        <p class="subtitle">Join Task Tracker Today</p>
         <div id="message"></div>
         
         <form id="registerForm">
-            <!-- SECURITY: Hidden CSRF token to prevent cross-site attacks -->
-            <!-- Generated on page load for ALL accounts (admin and non-admin) -->
             <input type="hidden" id="csrf_token" name="csrf_token" value="">
             
             <div class="form-group">
-                <label for="username">Username:</label>
+                <label for="username">Username</label>
                 <input 
                     type="text" 
                     id="username" 
                     name="username" 
-                    placeholder="Choose a username" 
+                    placeholder="Enter your username" 
                     required
-                    minlength="3"
-                    maxlength="50"
+                    autofocus
                 >
             </div>
 
             <div class="form-group">
-                <label for="password">Password:</label>
+                <label for="password">Password</label>
                 <div class="password-container">
-                    <input 
-                        type="password" 
-                        id="password" 
-                        name="password" 
-                        placeholder="Enter password" 
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
                         required
-                        minlength="8"
                     >
-                    <!-- Password toggle button - SVG icon for show/hide -->
-                    <button type="button" class="password-toggle" data-target="password" title="Show/Hide password">
-                        <!-- Show password (open eye) - initially visible -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <button type="button" class="password-toggle" title="Toggle password visibility">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                             <circle cx="12" cy="12" r="3"/>
                         </svg>
-                        <!-- Hide password (closed eye with slash) - initially hidden -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.94M9.88 9.88A3 3 0 0 0 12 15a3 3 0 0 0 2.12-5.12"/>
                             <line x1="1" y1="1" x2="23" y2="23"/>
                         </svg>
@@ -275,24 +318,21 @@
             </div>
 
             <div class="form-group">
-                <label for="confirmPassword">Confirm Password:</label>
+                <label for="confirmPassword">Confirm Password</label>
                 <div class="password-container">
-                    <input 
-                        type="password" 
-                        id="confirmPassword" 
-                        name="confirm_password" 
-                        placeholder="Confirm password" 
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        name="confirm_password"
+                        placeholder="Confirm your password"
                         required
                     >
-                    <!-- Password toggle button for confirm field -->
-                    <button type="button" class="password-toggle" data-target="confirmPassword" title="Show/Hide password">
-                        <!-- Show password (open eye) - initially visible -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <button type="button" class="password-toggle" title="Toggle password visibility">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                             <circle cx="12" cy="12" r="3"/>
                         </svg>
-                        <!-- Hide password (closed eye with slash) - initially hidden -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.94M9.88 9.88A3 3 0 0 0 12 15a3 3 0 0 0 2.12-5.12"/>
                             <line x1="1" y1="1" x2="23" y2="23"/>
                         </svg>
@@ -300,11 +340,11 @@
                 </div>
             </div>
 
-            <button type="submit">Register</button>
+            <button type="submit">Create Account</button>
         </form>
 
         <div class="link-section">
-            Already have an account? <a href="login.html">Login here</a>
+            Already have an account? <a href="login.html">Sign In</a>
         </div>
     </div>
 

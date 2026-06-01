@@ -1,15 +1,17 @@
 /**
- * Register Page JavaScript - Enhanced Version
+ * Register Page JavaScript - Enhanced Version with Real-Time Username Validation
  * Handles:
+ * - Real-time username availability checking
  * - Password visibility toggles
  * - Real-time password strength requirements
- * - CSRF token validation
  * - Form submission with comprehensive validation
  * - Error handling and user feedback
  */
 
 // Password special characters pattern
 const PASSWORD_SPECIAL_CHARS = /[!@#$%^&*]/;
+let usernameAvailable = false;
+let usernameCheckTimeout;
 
 /**
  * Initialize password visibility toggle buttons
@@ -28,6 +30,60 @@ function initPasswordToggles() {
             btn.classList.toggle('show', isPassword);
         });
     });
+}
+
+/**
+ * Check username availability in real-time (debounced)
+ * Prevents excessive server requests while typing
+ */
+function checkUsernameAvailability(username) {
+    // Clear previous timeout
+    clearTimeout(usernameCheckTimeout);
+    
+    // Reset state
+    usernameAvailable = false;
+    
+    // Validate client-side first
+    const usernameError = validateUsername(username);
+    const usernameField = document.getElementById('username');
+    
+    if (!username) {
+        usernameField.style.borderColor = '#e2e8f0';
+        return;
+    }
+    
+    if (usernameError) {
+        usernameField.style.borderColor = '#fc8181';
+        return;
+    }
+    
+    // Debounce server check (wait 500ms after user stops typing)
+    usernameCheckTimeout = setTimeout(() => {
+        // Prepare data for server check
+        const formData = new FormData();
+        formData.append('username', username);
+        
+        // Check availability on server
+        fetch('check_username.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.available) {
+                usernameAvailable = true;
+                usernameField.style.borderColor = '#9ae6b4'; // Green
+            } else {
+                usernameAvailable = false;
+                usernameField.style.borderColor = '#fc8181'; // Red
+                showMessage('Username not available. Try another one', 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Username check error:', error);
+            usernameField.style.borderColor = '#e2e8f0';
+        });
+    }, 500); // Wait 500ms after user stops typing
 }
 
 /**
@@ -83,7 +139,7 @@ function updatePasswordRequirements() {
 }
 
 /**
- * Display message to user with type (success or error)
+ * Display message to user with type (success, error, or warning)
  */
 function showMessage(text, type) {
     const msg = document.getElementById('message');
@@ -93,32 +149,12 @@ function showMessage(text, type) {
     msg.className = type;
     msg.style.display = 'block';
     
-    // Auto-hide success messages after 3 seconds
-    if (type === 'success') {
+    // Auto-hide success/warning messages after 3 seconds
+    if (type === 'success' || type === 'warning') {
         setTimeout(() => {
             msg.style.display = 'none';
         }, 3000);
     }
-}
-
-/**
- * Fetch CSRF token from server
- * Prevents cross-site attacks on registration
- */
-function fetchCSRFToken() {
-    return fetch('get_csrf_token.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.token) {
-                document.getElementById('csrf_token').value = data.token;
-                return true;
-            }
-            return false;
-        })
-        .catch(error => {
-            console.error('Failed to fetch CSRF token:', error);
-            return false;
-        });
 }
 
 /**
@@ -133,10 +169,16 @@ function handleRegistrationSubmit(e) {
     const confirmPassword = document.getElementById('confirmPassword').value;
     const submitBtn = document.querySelector('button[type="submit"]');
     
-    // VALIDATION: Check username
+    // VALIDATION: Check username format
     const usernameError = validateUsername(username);
     if (usernameError) {
         showMessage(usernameError, 'error');
+        return;
+    }
+    
+    // VALIDATION: Check if username is available
+    if (!usernameAvailable) {
+        showMessage('Username not available. Try another one', 'error');
         return;
     }
     
@@ -157,12 +199,11 @@ function handleRegistrationSubmit(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Creating account...';
     
-    // SUBMISSION: Prepare form data
+    // SUBMISSION: Prepare form data (NO CSRF TOKEN for new users)
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);
     formData.append('confirm_password', confirmPassword);
-    formData.append('csrf_token', document.getElementById('csrf_token').value);
     
     // SUBMISSION: Send to server
     fetch('register.php', {
@@ -179,14 +220,14 @@ function handleRegistrationSubmit(e) {
         } else {
             showMessage(data.error || data.message || 'Registration failed', 'error');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Register';
+            submitBtn.textContent = 'Create Account';
         }
     })
     .catch(err => {
         console.error('Registration error:', err);
         showMessage('Connection error: ' + err.message, 'error');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Register';
+        submitBtn.textContent = 'Create Account';
     });
 }
 
@@ -195,11 +236,16 @@ function handleRegistrationSubmit(e) {
  * Sets up password toggles, validators, and form handlers
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // Fetch CSRF token on page load
-    fetchCSRFToken();
-    
     // Initialize password toggle buttons
     initPasswordToggles();
+    
+    // Add real-time username availability checking
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) {
+        usernameInput.addEventListener('input', (e) => {
+            checkUsernameAvailability(e.target.value.trim());
+        });
+    }
     
     // Add real-time password requirement validation
     const passwordInput = document.getElementById('password');

@@ -1,27 +1,28 @@
 <?php
 /**
- * User Registration Handler - Enhanced Version
+ * User Registration Handler - Enhanced Version (CSRF-Free for New Users)
  * 
  * PURPOSE: Processes user registration with complete security and validation
  * 
  * FLOW:
  * 1. Validate HTTP method (POST only)
- * 2. Verify CSRF token (prevents cross-site attacks)
+ * 2. NO CSRF token required for new users (generated AFTER success)
  * 3. Check rate limiting by IP (prevents brute force/spam registration)
  * 4. Validate username format and uniqueness
  * 5. Validate password strength (uppercase, numbers, special chars)
  * 6. Hash password with bcrypt (cost=10 for low-RAM optimization)
  * 7. Insert user into database
- * 8. Generate CSRF token for first login
+ * 8. Generate CSRF token for first login (stored in session)
  * 9. Sync user to XML backup
  * 10. Return success response
  * 
  * SECURITY MEASURES:
- * - CSRF token validation prevents unauthorized form submissions
+ * - NO CSRF token validation on registration (new users have no session)
  * - Rate limiting (3 attempts per hour per IP) prevents registration spam
- * - Password hashing with bcrypt (cost=10) protects passwords even if database is compromised
+ * - Password hashing with bcrypt (cost=10) protects passwords even if database compromised
  * - Input validation prevents injection attacks
  * - Prepared statements prevent SQL injection
+ * - Username uniqueness enforced at DB level
  * 
  * OPTIMIZATION:
  * - Bcrypt cost=10 (instead of default 12) reduces CPU/memory load on 2GB RAM systems
@@ -39,15 +40,19 @@ header('Content-Type: application/json');
 try {
     /**
      * SECURITY: Only accept POST requests
-     * GET requests would be cached by browser and expose CSRF tokens in logs
+     * GET requests would be cached by browser and expose data in logs
      */
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         throw new Exception('Method not allowed');
     }
 
-    // No CSRF token required for new user registration
-    // Token will be generated and saved for their first login
+    /**
+     * NO CSRF TOKEN REQUIRED FOR NEW USER REGISTRATION
+     * Reason: New users have no session yet, can't have CSRF token
+     * Token will be generated and saved AFTER successful registration
+     * for their first login
+     */
 
     /**
      * VALIDATION: Get and sanitize form input
@@ -121,7 +126,7 @@ try {
     $result = $stmt->get_result();
     if ($result->num_rows > 0) {
         $stmt->close();
-        throw new Exception('Username already exists. Please choose a different one');
+        throw new Exception('Username not available. Try another one');
     }
     $stmt->close();
 
@@ -160,6 +165,7 @@ try {
          * SECURITY: Generate CSRF token for new user's session
          * Token is randomly generated server-side using random_bytes()
          * Token stored in $_SESSION (server-side, not sent to client except in forms)
+         * Generated ONLY AFTER successful registration
          * Prevents cross-site attacks on their first login
          */
         $_SESSION['user_id'] = $user_id;
@@ -200,7 +206,7 @@ try {
          * Other errors = database connectivity or server issues
          */
         if ($conn->errno == 1062) {
-            throw new Exception('This username is already registered');
+            throw new Exception('Username not available. Try another one');
         } else {
             throw new Exception('Registration failed: ' . $stmt->error);
         }

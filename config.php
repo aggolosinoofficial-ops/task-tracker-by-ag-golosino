@@ -51,8 +51,8 @@ define('CSRF_TOKEN_EXPIRY', 86400); // 24 hours
 
 // DEVELOPMENT MODE - Set to false in production!
 // WARNING: This disables rate limiting for testing
-// SET TO FALSE IN PRODUCTION!
-define('DEV_MODE', false);
+// ENABLED BY DEFAULT FOR LOCAL DEVELOPMENT
+define('DEV_MODE', true);
 
 // Security headers
 define('SESSION_COOKIE_DURATION', 3600);

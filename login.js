@@ -1,163 +1,156 @@
 /**
- * Login Page JavaScript - Enhanced Version
- * Handles:
- * - CSRF token management for security
- * - Password visibility toggle
- * - Form submission with validation
- * - Error recovery and user feedback
+ * Login Form Handler
+ * Fetches CSRF token and handles login submission
  */
 
-/**
- * Fetch CSRF token from server
- * Required for secure login submission
- */
-function initializeCSRF() {
-    fetch('get_csrf_token.php')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to fetch CSRF token');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.token) {
-                document.getElementById('csrf_token').value = data.token;
-            } else {
-                throw new Error('No CSRF token in response');
-            }
-        })
-        .catch(error => {
-            console.error('CSRF token error:', error);
-            showMessage('Security setup error. Please refresh the page.', 'error');
-        });
-}
-
-/**
- * Initialize password visibility toggle
- * Allows users to show/hide their password
- */
-function initPasswordToggle() {
-    const toggle = document.querySelector('.password-toggle');
-    const passwordInput = document.getElementById('password');
-
-    if (!toggle || !passwordInput) return;
-
-    toggle.addEventListener('click', function(e) {
-        e.preventDefault();
-
-        const isHidden = passwordInput.type === 'password';
-        passwordInput.type = isHidden ? 'text' : 'password';
-
-        if (isHidden) {
-            toggle.classList.add('show');
-        } else {
-            toggle.classList.remove('show');
-        }
-    });
-}
-
-/**
- * Display message to user (error or success)
- */
-function showMessage(message, type) {
-    const messageDiv = document.getElementById('message');
-    if (!messageDiv) return;
+// Get CSRF token from server on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Login] Page loaded, fetching CSRF token...');
     
-    messageDiv.textContent = message;
-    messageDiv.className = type;
-    messageDiv.style.display = type ? 'block' : 'none';
-}
+    // Fetch CSRF token
+    fetch('get_csrf_token.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        console.log('[CSRF] Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('[CSRF] Token received:', data.token ? 'Yes' : 'No');
+        if (data.token) {
+            document.getElementById('csrf_token').value = data.token;
+            console.log('[CSRF] Token set successfully');
+        } else {
+            console.error('[CSRF] No token in response:', data);
+            showMessage('Security token error. Please refresh the page.', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('[CSRF] Fetch error:', error);
+        showMessage('Failed to load security token. Please refresh the page.', 'error');
+    });
+
+    // Setup login form handler
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+        console.log('[Login] Form handler attached');
+    }
+
+    // Setup password toggle
+    setupPasswordToggle();
+});
 
 /**
  * Handle login form submission
- * Validates credentials and submits to server
  */
-function handleLoginSubmit(e) {
+function handleLogin(e) {
     e.preventDefault();
+    console.log('[Login] Form submitted');
 
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const csrfToken = document.getElementById('csrf_token').value;
     const submitBtn = document.querySelector('button[type="submit"]');
 
-    // VALIDATION: Check if fields are empty
+    // Validation
     if (!username || !password) {
-        showMessage('Please enter username and password', 'error');
+        showMessage('Username and password are required', 'error');
         return;
     }
 
-    // SECURITY: Check if CSRF token is available
     if (!csrfToken) {
-        showMessage('Security token missing. Refreshing...', 'error');
-        // Attempt to refresh CSRF token
-        initializeCSRF();
+        showMessage('Security token missing. Please refresh the page.', 'error');
         return;
     }
 
-    // OPTIMIZATION: Disable submit button to prevent double-submission
+    // Disable button
     submitBtn.disabled = true;
     submitBtn.textContent = 'Signing in...';
 
-    // SUBMISSION: Prepare form data
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    formData.append('csrf_token', csrfToken);
+    console.log('[Login] Sending login request for user:', username);
 
-    // SUBMISSION: Send credentials to server
+    // Send login request
     fetch('login.php', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        credentials: 'same-origin',
+        body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
-        .then(response => {
-            // Check HTTP status
-            if (!response.ok) {
-                return response.json().then(data => {
-                    throw new Error(data.error || `HTTP Error: ${response.status}`);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showMessage('Login successful! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = 'index.php';
-                }, 1500);
-            } else {
-                showMessage(data.error || 'Login failed', 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign In';
-                
-                // Refresh CSRF token on login failure for next attempt
-                initializeCSRF();
-            }
-        })
-        .catch(error => {
-            console.error('Login error:', error);
-            showMessage(error.message || 'Error during login. Please try again.', 'error');
+    .then(response => {
+        console.log('[Login] Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Login] Response data:', data);
+        
+        if (data.success) {
+            console.log('[Login] Login successful!');
+            showMessage('✓ Login successful! Redirecting...', 'success');
+            setTimeout(() => {
+                window.location.href = 'index.php';
+            }, 1000);
+        } else {
+            console.error('[Login] Error:', data.error);
             submitBtn.disabled = false;
             submitBtn.textContent = 'Sign In';
             
-            // Refresh CSRF token for next attempt
-            initializeCSRF();
-        });
+            // Show error message
+            const errorMsg = data.error || 'Login failed';
+            if (errorMsg.includes('refresh')) {
+                showMessage('Invalid security token. Please refresh the page.', 'error');
+            } else if (errorMsg.includes('Too many')) {
+                showMessage('Too many login attempts. Please wait before trying again.', 'error');
+            } else {
+                showMessage('✗ ' + errorMsg, 'error');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('[Login] Fetch error:', error);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+        
+        // Check if it's a connection error
+        if (error.message.includes('Failed to fetch')) {
+            showMessage('✗ Connection error: Could not reach server. Is XAMPP running?', 'error');
+        } else {
+            showMessage('✗ Network error: ' + error.message, 'error');
+        }
+    });
 }
 
 /**
- * Initialize page on load
- * Sets up CSRF token, password toggle, and form handler
+ * Show message in the message div
  */
-document.addEventListener('DOMContentLoaded', function() {
-    // Get CSRF token from server
-    initializeCSRF();
-    
-    // Initialize password visibility toggle
-    initPasswordToggle();
-    
-    // Set up form submission handler
-    const loginForm = document.getElementById('loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleLoginSubmit);
+function showMessage(message, type = 'info') {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = type;
+    messageDiv.style.display = 'block';
+    console.log('[Message]', type.toUpperCase(), message);
+}
+
+/**
+ * Setup password visibility toggle
+ */
+function setupPasswordToggle() {
+    const toggleBtn = document.querySelector('.password-toggle');
+    const passwordInput = document.getElementById('password');
+
+    if (!toggleBtn || !passwordInput) {
+        console.warn('[Password] Toggle button or input not found');
+        return;
     }
-});
+
+    toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        toggleBtn.classList.toggle('show', isPassword);
+        console.log('[Password] Visibility toggled');
+    });
+}

@@ -4,50 +4,99 @@ $servername = "localhost";
 $username = "root";
 $password = ""; // Default XAMPP password - change if you set a password in XAMPP
 
-// Create connection without database
-$conn = new mysqli($servername, $username, $password);
+// Create connection without database - with error suppression for clean error handling
+@$conn = new mysqli($servername, $username, $password);
 
 // Set connection options for better performance
-$conn->set_charset("utf8mb4");
+if ($conn) {
+    $conn->set_charset("utf8mb4");
+}
 
-// Check connection
-if ($conn->connect_error) {
+// Check connection - Detailed error reporting
+if ($conn && $conn->connect_error) {
+    $errorMsg = $conn->connect_error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $conn->connect_error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Database connection failed',
+            'details' => $errorMsg
+        ]);
         exit();
     } else {
-        die("Database connection failed: " . htmlspecialchars($conn->connect_error));
+        http_response_code(503);
+        die("
+        <h2>Database Connection Error</h2>
+        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
+        <hr>
+        <h3>Troubleshooting:</h3>
+        <ul>
+            <li>✓ Check XAMPP Control Panel - Is MySQL running? (Should be GREEN)</li>
+            <li>✓ Try restarting MySQL from XAMPP Control Panel</li>
+            <li>✓ Check if MySQL is using port 3306 (default)</li>
+            <li>✓ Verify username 'root' and empty password in config</li>
+            <li>✓ Try: <code>mysql -u root -h localhost</code> in command line</li>
+        </ul>
+        ");
     }
 }
 
 // OPTIMIZATION: Reduce memory footprint for large result sets
-$conn->set_charset("utf8mb4");
+if ($conn) {
+    $conn->set_charset("utf8mb4");
+}
 
 // Create database if it doesn't exist
 $dbname = "test";
 $sql = "CREATE DATABASE IF NOT EXISTS $dbname";
-if ($conn->query($sql) !== TRUE) {
+
+if ($conn && $conn->query($sql) !== TRUE) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Error creating database: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Error creating database',
+            'details' => $errorMsg
+        ]);
         exit();
     } else {
-        die("Error creating database: " . htmlspecialchars($conn->error));
+        http_response_code(503);
+        die("
+        <h2>Database Creation Error</h2>
+        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
+        <p>Try restarting MySQL in XAMPP Control Panel</p>
+        ");
     }
 }
 
 // Select the database
 if (!$conn->select_db($dbname)) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Failed to select database: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Failed to select database',
+            'details' => $errorMsg
+        ]);
         exit();
     } else {
-        die("Failed to select database: " . htmlspecialchars($conn->error));
+        http_response_code(503);
+        die("
+        <h2>Database Selection Error</h2>
+        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
+        <p>Database 'test' could not be selected. Try restarting MySQL.</p>
+        ");
     }
 }
 
@@ -63,13 +112,21 @@ $users_sql = "CREATE TABLE IF NOT EXISTS test.users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($users_sql) !== TRUE) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Error creating users table: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Error creating users table',
+            'details' => $errorMsg
+        ]);
         exit();
     } else {
-        die("Error creating users table: " . htmlspecialchars($conn->error));
+        http_response_code(503);
+        die("Error creating users table: " . htmlspecialchars($errorMsg));
     }
 }
 
@@ -99,13 +156,21 @@ $table_sql = "CREATE TABLE IF NOT EXISTS test.tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($table_sql) !== TRUE) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Error creating tasks table: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Error creating tasks table',
+            'details' => $errorMsg
+        ]);
         exit();
     } else {
-        die("Error creating tasks table: " . htmlspecialchars($conn->error));
+        http_response_code(503);
+        die("Error creating tasks table: " . htmlspecialchars($errorMsg));
     }
 }
 
@@ -123,17 +188,22 @@ $archive_sql = "CREATE TABLE IF NOT EXISTS test.archive_tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($archive_sql) !== TRUE) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Error creating archive table: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Error creating archive table',
+            'details' => $errorMsg
+        ]);
         exit();
     }
 }
 
 // Create deleted tasks table if it doesn't exist
-// This table stores the audit history for permanently deleted archive records.
-// It is intentionally lean to limit memory usage and support recovery/analytics.
 $deleted_sql = "CREATE TABLE IF NOT EXISTS test.deleted_tasks (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -148,12 +218,35 @@ $deleted_sql = "CREATE TABLE IF NOT EXISTS test.deleted_tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($deleted_sql) !== TRUE) {
+    $errorMsg = $conn->error;
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Error creating deleted tasks table: ' . $conn->error]);
+        http_response_code(503);
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Error creating deleted_tasks table',
+            'details' => $errorMsg
+        ]);
         exit();
     }
+}
+
+// Create task_stats table if it doesn't exist
+$stats_sql = "CREATE TABLE IF NOT EXISTS test.task_stats (
+    user_id INT PRIMARY KEY,
+    total_tasks INT DEFAULT 0,
+    completed_tasks INT DEFAULT 0,
+    pending_tasks INT DEFAULT 0,
+    archived_tasks INT DEFAULT 0,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES test.users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+if ($conn->query($stats_sql) !== TRUE) {
+    // Don't error out for stats table - it's optional
+    error_log("Warning: Could not create task_stats table: " . $conn->error);
 }
 
 // Set connection attributes for optimal performance on 2GB RAM systems

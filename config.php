@@ -49,10 +49,11 @@ define('MAX_LOGIN_ATTEMPTS_PER_IP', 10); // Per hour
 define('CSRF_TOKEN_LENGTH', 32);
 define('CSRF_TOKEN_EXPIRY', 86400); // 24 hours
 
-// DEVELOPMENT MODE - Set to true to bypass rate limiting for testing
-// WARNING: Only for development/testing. Set to false in production!
-define('DEV_MODE', true); // Set to true to disable rate limiting and bypass checks
-//this chage cause unlimited login/register attepmts
+// DEVELOPMENT MODE - Set to false in production!
+// WARNING: This disables rate limiting for testing
+// SET TO FALSE IN PRODUCTION!
+define('DEV_MODE', false);
+
 // Security headers
 define('SESSION_COOKIE_DURATION', 3600);
 
@@ -64,7 +65,7 @@ if (isset($_SERVER['REQUEST_SCHEME'])) {
     $scheme = 'https';
 }
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-define('BASE_URL', $scheme . '://' . $host . '/to-do-app-by-ag-golosino/');
+define('BASE_URL', $scheme . '://' . $host . '/task-tracker-by-ag-golosino/');
 
 // Error handling
 error_reporting(E_ALL);

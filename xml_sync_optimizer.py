@@ -274,7 +274,7 @@ class XMLMySQLSync:
         logger.info("Starting MySQL → XML restore...")
         
         try:
-            import pymysql
+            import pymysql 
         except ImportError:
             logger.error("pymysql not installed. Install with: pip install pymysql")
             return False

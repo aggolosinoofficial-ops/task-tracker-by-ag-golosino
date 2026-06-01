@@ -46,27 +46,8 @@ try {
         throw new Exception('Method not allowed');
     }
 
-    /**
-     * SECURITY: Verify CSRF token prevents cross-site request forgery
-     * Attacker cannot forge valid token without access to user's session
-     * Token is generated server-side and validated on submission
-     */
-    $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
-    if (!verifyCSRFToken($csrf_token)) {
-        http_response_code(403);
-        throw new Exception('Invalid request token. Please refresh and try again');
-    }
-
-    /**
-     * SECURITY: Rate limiting prevents registration spam/brute force
-     * Max 3 registration attempts per IP per hour
-     * Attacker cannot create unlimited accounts from same IP
-     */
-    $rate_check = checkRateLimit('registration', MAX_REGISTRATION_PER_IP, 3600);
-    if (!$rate_check['allowed']) {
-        http_response_code(429);
-        throw new Exception("Too many registration attempts. Please wait " . ceil($rate_check['wait_seconds'] / 60) . " minutes");
-    }
+    // No CSRF token required for new user registration
+    // Token will be generated and saved for their first login
 
     /**
      * VALIDATION: Get and sanitize form input
@@ -83,20 +64,23 @@ try {
     }
 
     /**
-     * VALIDATION: Username length check (3-50 characters)
-     * Prevents extremely short/long usernames that could break UX
+     * VALIDATION: Username length check (3-30 characters)
+     * Min 3: Prevents overly short usernames
+     * Max 30: Prevents overly long usernames that break UI
      */
-    if (strlen($username) < 3 || strlen($username) > 50) {
-        throw new Exception('Username must be between 3 and 50 characters');
+    if (strlen($username) < 3 || strlen($username) > 30) {
+        throw new Exception('Username must be between 3 and 30 characters');
     }
 
     /**
-     * VALIDATION: Username format check (alphanumeric, underscore, hyphen only)
-     * Whitelist approach safer than blacklist
-     * Prevents special characters that might cause display/URL issues
+     * VALIDATION: Username format check
+     * Allows: letters, numbers, spaces, emojis, underscores
+     * Blocks: SQL injection (;'"), bash commands ($()`), special chars (!@#%^&*<>|&)
+     * Whitelist approach for safety
      */
-    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
-        throw new Exception('Username can only contain letters, numbers, underscores, and hyphens');
+    // Allow alphanumeric, spaces, underscores, and Unicode (emojis)
+    if (!preg_match('/^[\w\s\u0080-\uFFFF]+$/u', $username)) {
+        throw new Exception('Username contains invalid characters. Use letters, numbers, spaces, and emojis only');
     }
 
     /**

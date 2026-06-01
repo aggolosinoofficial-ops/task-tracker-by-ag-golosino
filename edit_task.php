@@ -3,6 +3,7 @@
  * Edit Task Handler - Enhanced Version
  * Updates a task for the authenticated user
  * - Requires authentication with session timeout check
+ * - CSRF token validation to prevent CSRF attacks
  * - Verifies user owns the task before updating
  * - Validates input
  * - Handles both AJAX and form submissions
@@ -41,6 +42,18 @@ try {
             throw new Exception('Invalid request method');
         } else {
             header("Location: tasks.php");
+            exit();
+        }
+    }
+
+    // ✅ SECURITY: Validate CSRF token
+    $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
+    if (!verifyCSRFToken($csrf_token)) {
+        if ($isAjax) {
+            http_response_code(403);
+            throw new Exception('Invalid request token. Please refresh and try again');
+        } else {
+            header("Location: tasks.php?error=Invalid request token");
             exit();
         }
     }

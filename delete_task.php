@@ -3,6 +3,7 @@
  * Delete Task Handler - Enhanced Version
  * Deletes a task for the authenticated user
  * - Requires authentication with session timeout check
+ * - CSRF token validation to prevent CSRF attacks
  * - Verifies user owns the task before deletion
  * - Handles both AJAX and form submissions
  * - Returns JSON for AJAX, redirects for form submissions
@@ -43,6 +44,18 @@ try {
         }
     }
 
+    // ✅ SECURITY: Validate CSRF token
+    $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
+    if (!verifyCSRFToken($csrf_token)) {
+        if ($isAjax) {
+            http_response_code(403);
+            throw new Exception('Invalid request token. Please refresh and try again');
+        } else {
+            header("Location: tasks.php?error=Invalid request token");
+            exit();
+        }
+    }
+
     $task_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
 
     if ($task_id <= 0) {
@@ -78,13 +91,14 @@ try {
     // This moves the task from active to archive, preserving data for recovery
     $archiveStmt = $conn->prepare(
         "INSERT INTO " . ARCHIVE_TABLE . " (user_id, title, description, status, created_at, archived_at)
-        VALUES (?, ?, ?, ?, NOW(), NOW())"
+        VALUES (?, ?, ?, ?, ?, NOW())"
     );
     if (!$archiveStmt) {
         throw new Exception('Database error');
     }
 
-    $archiveStmt->bind_param("isss", $user_id, $task['title'], $task['description'], $task['status']);
+    $now = date('Y-m-d H:i:s');
+    $archiveStmt->bind_param("issss", $user_id, $task['title'], $task['description'], $task['status'], $now);
     if (!$archiveStmt->execute()) {
         $archiveStmt->close();
         throw new Exception('Failed to archive task');

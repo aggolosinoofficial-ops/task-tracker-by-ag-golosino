@@ -3,6 +3,7 @@
  * Toggle Task Status Handler - Enhanced Version
  * Changes task status between 'pending' and 'completed'
  * - Requires authentication with session timeout check
+ * - CSRF token validation to prevent CSRF attacks
  * - Verifies user owns the task
  * - Input validation and error handling
  * - Returns JSON response
@@ -25,6 +26,13 @@ try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         throw new Exception('Invalid request method');
+    }
+
+    // ✅ SECURITY: Validate CSRF token
+    $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
+    if (!verifyCSRFToken($csrf_token)) {
+        http_response_code(403);
+        throw new Exception('Invalid request token. Please refresh and try again');
     }
 
     // Get and validate input
@@ -63,7 +71,7 @@ try {
     }
 
 } catch (Exception $e) {
-    http_response_code(400);
+    http_response_code($e->getCode() ?: 400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } finally {
     if (isset($stmt)) {

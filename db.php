@@ -4,11 +4,16 @@ $servername = "localhost";
 $username = "root";
 $password = ""; // Default XAMPP password - change if you set a password in XAMPP
 
+// Set socket timeout to prevent hanging
+ini_set('default_socket_timeout', 5); // 5 second timeout
+
 // Create connection without database - with error suppression for clean error handling
 @$conn = new mysqli($servername, $username, $password);
 
-// Set connection options for better performance
+// Set connection timeouts
 if ($conn) {
+    $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
+    $conn->options(MYSQLI_INIT_COMMAND, "SET SESSION sql_mode='STRICT_TRANS_TABLES'");
     $conn->set_charset("utf8mb4");
 }
 

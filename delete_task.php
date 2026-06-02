@@ -62,62 +62,76 @@ try {
         throw new Exception('Invalid task ID');
     }
 
-    // First, get the task details to archive it
-    // Retrieve all necessary info for archiving and backup
-    $getStmt = $conn->prepare("SELECT id, title, description, status, created_at FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
-    if (!$getStmt) {
-        throw new Exception('Database error');
+    $sync = getXMLSyncHandler();
+
+    // STEP 1: GET TASK FROM XML (PRIMARY STORAGE)
+    $task = $sync->getTaskFromXML($task_id, $user_id);
+    if (!$task) {
+        // FALLBACK: Try database if XML fails
+        if (isset($conn) && $conn->ping()) {
+            $getStmt = $conn->prepare("SELECT id, title, description, status, created_at FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
+            if ($getStmt) {
+                $getStmt->bind_param("ii", $task_id, $user_id);
+                $getStmt->execute();
+                $result = $getStmt->get_result();
+                if ($result->num_rows > 0) {
+                    $task = $result->fetch_assoc();
+                }
+                $getStmt->close();
+            }
+        }
+        
+        if (!$task) {
+            if ($isAjax) {
+                http_response_code(403);
+                throw new Exception('Task not found or permission denied');
+            } else {
+                header("Location: tasks.php?error=Task not found or permission denied");
+                exit();
+            }
+        }
     }
 
-    $getStmt->bind_param("ii", $task_id, $user_id);
-    $getStmt->execute();
-    $result = $getStmt->get_result();
-
-    if ($result->num_rows === 0) {
-        $getStmt->close();
+    // STEP 2: DELETE FROM XML (PRIMARY STORAGE - CRITICAL)
+    $xml_delete_success = $sync->deleteTaskFromXML($task_id, $user_id);
+    if (!$xml_delete_success) {
         if ($isAjax) {
             http_response_code(403);
-            throw new Exception('Task not found or permission denied');
+            throw new Exception('Failed to delete task from primary storage');
         } else {
-            header("Location: tasks.php?error=Task not found or permission denied");
+            header("Location: tasks.php?error=Failed to delete task");
             exit();
         }
     }
 
-    $task = $result->fetch_assoc();
-    $getStmt->close();
-
-    // Archive the task (insert into archive_tasks table)
-    // This moves the task from active to archive, preserving data for recovery
-    $archiveStmt = $conn->prepare(
-        "INSERT INTO " . ARCHIVE_TABLE . " (user_id, title, description, status, created_at, archived_at)
-        VALUES (?, ?, ?, ?, ?, NOW())"
-    );
-    if (!$archiveStmt) {
-        throw new Exception('Database error');
-    }
-
-    $now = date('Y-m-d H:i:s');
-    $archiveStmt->bind_param("issss", $user_id, $task['title'], $task['description'], $task['status'], $now);
-    if (!$archiveStmt->execute()) {
-        $archiveStmt->close();
-        throw new Exception('Failed to archive task');
-    }
+    // STEP 3: SYNC DELETE TO DATABASE (SECONDARY STORAGE - NON-CRITICAL)
+    $db_sync_success = false;
+    $db_error = null;
     
-    // Get the archive ID that was just created
-    $archive_id = $archiveStmt->insert_id;
-    $archiveStmt->close();
-
-    // Delete task from active table
-    $stmt = $conn->prepare("DELETE FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
-    if (!$stmt) {
-        throw new Exception('Database error');
+    if (isset($conn) && $conn->ping()) {
+        $stmt = $conn->prepare("DELETE FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("ii", $task_id, $user_id);
+            $db_sync_success = $stmt->execute();
+            if (!$db_sync_success) {
+                $db_error = $stmt->error;
+            }
+            $stmt->close();
+        } else {
+            $db_error = $conn->error;
+        }
     }
 
-    $stmt->bind_param("ii", $task_id, $user_id);
-
-    if ($stmt->execute()) {
-        if ($stmt->affected_rows > 0) {
+    if ($isAjax) {
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Task deleted successfully',
+            'storage' => [
+                'xml' => 'primary ✓',
+                'database' => $db_sync_success ? 'synced ✓' : ($db_error ? 'failed: ' . $db_error : 'unavailable')
+            ]
+        ]);
+    } else {
             // Sync task deletion from active tasks to XML backup
             $sync = getXMLSyncHandler();
             $sync->syncTaskDeleteToXML($task_id);

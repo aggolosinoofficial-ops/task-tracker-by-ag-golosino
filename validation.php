@@ -107,43 +107,53 @@ function validatePassword($password, $warn_weak = true)
 }
 
 /**
- * Check if username exists in DB or XML
- * Queries both database and XML backup to ensure consistency
+ * Check if username exists in XML or DB (XML-FIRST)
+ * PRIMARY: Checks XML storage first (OLTP)
+ * SECONDARY: Checks database if XML unavailable
  * 
  * @param string $username Username to check
- * @return bool True if username exists, false otherwise
+ * @return bool True if username exists in XML or DB, false otherwise
  */
 function usernameExists($username)
 {
-    global $conn;
-
     try {
-        // Check in database first
-        $stmt = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
-        if ($stmt) {
-            $stmt->bind_param("s", $username);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $stmt->close();
-            
-            if ($result->num_rows > 0) {
-                return true;
+        // STEP 1: Check XML FIRST (PRIMARY STORAGE)
+        if (file_exists(__DIR__ . '/users.xml')) {
+            try {
+                $xml = simplexml_load_file(__DIR__ . '/users.xml');
+                if ($xml) {
+                    foreach ($xml->user as $user) {
+                        if ((string)$user->username === $username) {
+                            return true; // Found in primary storage
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("XML check warning: " . $e->getMessage());
             }
         }
 
-        // Also check XML if available for backup consistency
-        if (file_exists('users.xml')) {
-            $xml = simplexml_load_file('users.xml');
-            if ($xml) {
-                foreach ($xml->user as $user) {
-                    if ((string)$user->username === $username) {
-                        return true;
+        // STEP 2: Check DATABASE (SECONDARY STORAGE) if available
+        try {
+            global $conn;
+            if (isset($conn) && $conn && !$conn->connect_error) {
+                $stmt = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
+                if ($stmt) {
+                    $stmt->bind_param("s", $username);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $stmt->close();
+                    
+                    if ($result->num_rows > 0) {
+                        return true; // Found in secondary storage
                     }
                 }
             }
+        } catch (Exception $e) {
+            error_log("Database check warning: " . $e->getMessage());
         }
 
-        return false;
+        return false; // Not found in either storage
     } catch (Exception $e) {
         error_log("Error checking username existence: " . $e->getMessage());
         return false;

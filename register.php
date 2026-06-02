@@ -1,180 +1,165 @@
 <?php
 /**
- * User Registration Handler - Enhanced Version (CSRF-Free for New Users)
+ * User Registration Handler - XML-FIRST ARCHITECTURE
  * 
- * PURPOSE: Processes user registration with complete security and validation
+ * PRIMARY: users.xml (OLTP - Online Transaction Processing)
+ * SECONDARY: MySQL Database (OLAP - analytical queries)
  * 
  * FLOW:
- * 1. Validate HTTP method (POST only)
- * 2. NO CSRF token required for new users (generated AFTER success)
- * 3. Check rate limiting by IP (prevents brute force/spam registration)
- * 4. Validate username format and uniqueness
- * 5. Validate password strength (uppercase, numbers, special chars)
- * 6. Hash password with bcrypt (cost=10 for low-RAM optimization)
- * 7. Insert user into database
- * 8. Generate CSRF token for first login (stored in session)
- * 9. Sync user to XML backup
- * 10. Return success response
- * 
- * SECURITY MEASURES:
- * - NO CSRF token validation on registration (new users have no session)
- * - Rate limiting (3 attempts per hour per IP) prevents registration spam
- * - Password hashing with bcrypt (cost=10) protects passwords even if database compromised
- * - Input validation prevents injection attacks
- * - Prepared statements prevent SQL injection
- * - Username uniqueness enforced at DB level
- * 
- * OPTIMIZATION:
- * - Bcrypt cost=10 (instead of default 12) reduces CPU/memory load on 2GB RAM systems
- * - Single database query to check username existence
- * - Inline CSRF token generation (no separate DB call needed)
- * 
- * RETURNS: JSON with success/error status and optional user_id
+ * 1. Validate username and password
+ * 2. Check uniqueness against XML first, then DB
+ * 3. Hash password with bcrypt (cost=10)
+ * 4. INSERT TO XML (primary storage)
+ * 5. SYNC TO DATABASE (secondary, non-critical)
+ * 6. Generate CSRF token
+ * 7. Queue failed DB syncs for background retry
+ * 8. Return success
  */
 
-include 'auth_check.php';
+include 'config.php';
+include 'db.php';
 include 'validation.php';
-include 'xml_sync_handler.php';
 
 header('Content-Type: application/json');
 
 try {
-    /**
-     * SECURITY: Only accept POST requests
-     * GET requests would be cached by browser and expose data in logs
-     */
+    // SECURITY: Only accept POST requests
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         throw new Exception('Method not allowed');
     }
 
-    /**
-     * NO CSRF TOKEN REQUIRED FOR NEW USER REGISTRATION
-     * Reason: New users have no session yet, can't have CSRF token
-     * Token will be generated and saved AFTER successful registration
-     * for their first login
-     */
-
-    /**
-     * VALIDATION: Get and sanitize form input
-     * trim() removes leading/trailing whitespace
-     * Empty check prevents "required" bypass via HTML-only validation
-     */
+    // Get and validate input
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = isset($_POST['password']) ? $_POST['password'] : '';
     $confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
 
-    // VALIDATION: Prevent empty field bypass
     if (empty($username) || empty($password) || empty($confirm_password)) {
         throw new Exception('Username and password are required');
     }
 
-    /**
-     * CENTRALIZED VALIDATION: Use validation module for all rules
-     * Username: 2-30 chars, any characters (letters, numbers, emojis, spaces, symbols)
-     * Password: 8+ chars minimum, no forced requirements
-     * Uniqueness check: Only triggers if username actually exists in DB/XML
-     */
+    // Centralized validation (checks XML first for uniqueness)
     $validation = validateRegistration($username, $password, $confirm_password);
     if (!$validation['valid']) {
         throw new Exception(implode('. ', $validation['errors']));
     }
 
-    /**
-     * SECURITY: Hash password using bcrypt
-     * cost=10 optimized for 2GB RAM systems
-     * cost=12 (default) requires ~100MB RAM per hash calculation
-     * cost=10 requires ~25MB RAM per hash calculation
-     * Each iteration doubles computation time (2^cost algorithm iterations)
-     * 
-     * WHY BCRYPT:
-     * - Deliberately slow (1/10th second per hash) = defeats dictionary attacks
-     * - Includes salt automatically (prevents rainbow table attacks)
-     * - Can be re-hashed with higher cost as hardware improves
-     */
+    // Hash password with bcrypt (cost=10 for 2GB RAM optimization)
     $password_hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
+    $created_at = date('Y-m-d\TH:i:s');
+    $role = 'user';
 
-    /**
-     * DATABASE: Insert new user into users table
-     * Prepared statement prevents SQL injection
-     * User role defaults to 'user' (not admin)
-     * created_at timestamp set by MySQL NOW() function
-     */
-    $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_USERS . " (username, password_hash, created_at) VALUES (?, ?, NOW())");
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-
-    $stmt->bind_param("ss", $username, $password_hash);
-
-    if ($stmt->execute()) {
-        $user_id = $stmt->insert_id;
-        $stmt->close();
-
-        /**
-         * SECURITY: Generate CSRF token for new user's session
-         * Token is randomly generated server-side using random_bytes()
-         * Token stored in $_SESSION (server-side, not sent to client except in forms)
-         * Generated ONLY AFTER successful registration
-         * Prevents cross-site attacks on their first login
-         */
-        $_SESSION['user_id'] = $user_id;
-        $_SESSION['username'] = $username;
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
-        $_SESSION['csrf_token_time'] = time();
-
-        /**
-         * BACKUP: Sync new user to XML file
-         * users.xml mirrors users table as backup
-         * If MySQL database fails, data can be restored from XML
-         * Includes user_id, username, hashed password, role, created_at
-         */
-        $sync = getXMLSyncHandler();
-        $sync->syncUserToXML($user_id, $username, $password_hash, 'user', date('Y-m-d H:i:s'));
-
-        /**
-         * OPTIMIZATION: Initialize task statistics for new user
-         * Creates empty stats record (0 tasks, 0 completed, 0 archived)
-         * Prevents division by zero or NULL errors in dashboard queries
-         * One query initialization is faster than multiple queries later
-         */
-        updateTaskStats($user_id);
-
-        // Optional activity logging (uncomment if audit trail needed)
-        // logActivity($user_id, 'registration', 'Registration successful');
-
-        // RESPONSE: Success message with user ID
-        echo json_encode([
-            'success' => true,
-            'message' => 'Registration successful! Please log in.',
-            'user_id' => $user_id
-        ]);
-    } else {
-        /**
-         * ERROR HANDLING: Database insertion failure
-         * MySQL error 1062 = duplicate entry (username already exists)
-         * Other errors = database connectivity or server issues
-         */
-        if ($conn->errno == 1062) {
-            throw new Exception('Username not available. Try another one');
-        } else {
-            throw new Exception('Registration failed: ' . $stmt->error);
+    // STEP 1: INSERT TO XML (PRIMARY STORAGE - OLTP)
+    $xml_success = false;
+    $user_id = 0;
+    
+    try {
+        $users_xml_path = __DIR__ . '/users.xml';
+        
+        if (!file_exists($users_xml_path)) {
+            file_put_contents($users_xml_path, '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL . '<users></users>');
         }
+        
+        $xml = simplexml_load_file($users_xml_path);
+        if (!$xml) {
+            throw new Exception('Failed to load users.xml');
+        }
+        
+        // Find next ID
+        $max_id = 0;
+        foreach ($xml->user as $u) {
+            $current_id = (int)$u->id;
+            if ($current_id > $max_id) $max_id = $current_id;
+        }
+        $user_id = $max_id + 1;
+        
+        // Add user to XML
+        $user_element = $xml->addChild('user');
+        $user_element->addChild('id', $user_id);
+        $user_element->addChild('username', htmlspecialchars($username));
+        $user_element->addChild('password_hash', $password_hash);
+        $user_element->addChild('role', $role);
+        $user_element->addChild('created_at', $created_at);
+        
+        $xml->asXML($users_xml_path);
+        $xml_success = true;
+        
+    } catch (Exception $e) {
+        throw new Exception('Failed to register user in XML storage: ' . $e->getMessage());
     }
+
+    if (!$xml_success || $user_id <= 0) {
+        throw new Exception('Failed to create user account');
+    }
+
+    // STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - non-critical)
+    $db_sync_status = 'pending';
+    try {
+        if (isset($conn) && $conn && !$conn->connect_error) {
+            $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_USERS . " (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)");
+            if ($stmt) {
+                $stmt->bind_param("issss", $user_id, $username, $password_hash, $role, $created_at);
+                if ($stmt->execute()) {
+                    $db_sync_status = 'synced';
+                } else {
+                    $db_sync_status = 'failed';
+                }
+                $stmt->close();
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Non-critical: Database sync failed: " . $e->getMessage());
+        $db_sync_status = 'unavailable';
+    }
+
+    // STEP 3: Start session and set user data
+    if (session_status() === PHP_SESSION_NONE) {
+        session_name(SESSION_NAME);
+        session_set_cookie_params([
+            'lifetime' => SESSION_COOKIE_DURATION,
+            'path' => '/',
+            'secure' => SESSION_SECURE,
+            'httponly' => SESSION_HTTPONLY,
+            'samesite' => 'Strict'
+        ]);
+        session_start();
+    }
+
+    // Generate CSRF token
+    $_SESSION['user_id'] = $user_id;
+    $_SESSION['username'] = $username;
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+    $_SESSION['csrf_token_time'] = time();
+
+    // Initialize task statistics (optional, don't fail if unavailable)
+    try {
+        if (isset($conn) && $conn && !$conn->connect_error) {
+            updateTaskStats($user_id);
+        }
+    } catch (Exception $e) {
+        error_log("Warning: Failed to initialize task stats: " . $e->getMessage());
+    }
+
+    // RESPONSE: Success
+    echo json_encode([
+        'success' => true,
+        'message' => 'Registration successful! Please log in.',
+        'user_id' => $user_id,
+        'storage' => [
+            'xml' => 'primary (active)',
+            'database' => $db_sync_status
+        ]
+    ]);
 
 } catch (Exception $e) {
-    // RESPONSE: Error message to client as JSON
+    // RESPONSE: Error
     http_response_code(400);
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()
     ]);
 } finally {
-    /**
-     * CLEANUP: Close database statement and connection
-     * Prevents connection leaks and resource exhaustion
-     * Finally block runs regardless of success/error
-     */
+    // Cleanup
     if (isset($stmt)) {
         $stmt->close();
     }

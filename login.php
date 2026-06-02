@@ -44,25 +44,15 @@ try {
         throw new Exception('Username and password are required');
     }
 
-    // Get user by username using prepared statement
-    $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ?");
+    // Get user by username - CHECK XML FIRST (PRIMARY), then DATABASE (SECONDARY)
     $user = null;
+    $source = '';
     
-    if ($stmt) {
-        $stmt->bind_param("s", $username);
-        if ($stmt->execute()) {
-            $result = $stmt->get_result();
-            if ($result && $result->num_rows > 0) {
-                $user = $result->fetch_assoc();
-            }
-            $stmt->close();
-        }
-    }
-    
-    // XML FALLBACK: If database unavailable, check XML backup
-    if (!$user && file_exists('users.xml')) {
-        try {
-            $xml = simplexml_load_file('users.xml');
+    // STEP 1: Check XML first (primary storage)
+    try {
+        $xml_path = __DIR__ . '/users.xml';
+        if (file_exists($xml_path)) {
+            $xml = simplexml_load_file($xml_path);
             if ($xml) {
                 foreach ($xml->user as $xmlUser) {
                     if ((string)$xmlUser->username === $username) {
@@ -71,12 +61,33 @@ try {
                             'username' => (string)$xmlUser->username,
                             'password_hash' => (string)$xmlUser->password_hash
                         ];
+                        $source = 'xml';
                         break;
                     }
                 }
             }
+        }
+    } catch (Exception $e) {
+        error_log("XML login check error: " . $e->getMessage());
+    }
+    
+    // STEP 2: If not found in XML, check DATABASE (secondary storage)
+    if (!$user) {
+        try {
+            $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param("s", $username);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    if ($result && $result->num_rows > 0) {
+                        $user = $result->fetch_assoc();
+                        $source = 'database';
+                    }
+                    $stmt->close();
+                }
+            }
         } catch (Exception $e) {
-            // XML load failed, continue with error handling below
+            error_log("Database login check error: " . $e->getMessage());
         }
     }
 

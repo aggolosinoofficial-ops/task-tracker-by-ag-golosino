@@ -80,56 +80,64 @@ try {
         throw new Exception('Task description is too long');
     }
 
-    // Update task ONLY if it belongs to the logged-in user
-    // This prevents users from updating other users' tasks
-    $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_TASKS . " SET title = ?, description = ? WHERE id = ? AND user_id = ?");
-    if (!$stmt) {
-        throw new Exception('Database error');
+    $sync = getXMLSyncHandler();
+
+    // STEP 1: UPDATE IN XML (PRIMARY STORAGE - CRITICAL)
+    $xml_update_success = $sync->updateTaskInXML($task_id, $user_id, [
+        'title' => $title,
+        'description' => $description
+    ]);
+    
+    if (!$xml_update_success) {
+        if ($isAjax) {
+            http_response_code(403);
+            throw new Exception('Task not found or permission denied');
+        } else {
+            header("Location: tasks.php?error=Task not found or permission denied");
+            exit();
+        }
     }
 
-    $stmt->bind_param("ssii", $title, $description, $task_id, $user_id);
-
-    if ($stmt->execute()) {
-        if ($stmt->affected_rows > 0) {
-            // Sync task update to XML backup
-            $sync = getXMLSyncHandler();
-            $sync->syncTaskUpdateToXML($task_id, ['title' => $title, 'description' => $description]);
-            
-            // Task was updated successfully
-            if ($isAjax) {
-                echo json_encode(['success' => true, 'message' => 'Task updated']);
-            } else {
-                header("Location: tasks.php?success=Task updated");
+    // STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - NON-CRITICAL)
+    $db_sync_success = false;
+    $db_error = null;
+    
+    if (isset($conn) && $conn->ping()) {
+        $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_TASKS . " SET title = ?, description = ? WHERE id = ? AND user_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("ssii", $title, $description, $task_id, $user_id);
+            $db_sync_success = $stmt->execute() && $stmt->affected_rows > 0;
+            if (!$db_sync_success) {
+                $db_error = $stmt->error;
             }
+            $stmt->close();
         } else {
-            // Task not found or doesn't belong to user
-            if ($isAjax) {
-                http_response_code(403);
-                throw new Exception('Task not found or permission denied');
-            } else {
-                header("Location: tasks.php?error=Task not found or permission denied");
-            }
+            $db_error = $conn->error;
         }
+    }
+
+    // Return success (XML update succeeded, DB sync is bonus)
+    if ($isAjax) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Task updated successfully',
+            'storage' => [
+                'xml' => 'primary ✓',
+                'database' => $db_sync_success ? 'synced ✓' : ($db_error ? 'failed: ' . $db_error : 'unavailable')
+            ]
+        ]);
     } else {
-        throw new Exception('Failed to update task');
+        header('Location: tasks.php?success=Task updated successfully');
+        exit();
     }
 
 } catch (Exception $e) {
-    if (isset($stmt)) {
-        $stmt->close();
-    }
     if ($isAjax) {
         http_response_code($e->getCode() ?: 400);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     } else {
         header("Location: tasks.php?error=" . urlencode($e->getMessage()));
-    }
-} finally {
-    if (isset($stmt)) {
-        $stmt->close();
-    }
-    if (isset($conn)) {
-        $conn->close();
+        exit();
     }
 }
 ?>

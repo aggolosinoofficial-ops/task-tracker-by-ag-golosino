@@ -1,15 +1,14 @@
 <?php
 /**
- * Get Tasks Handler - Enhanced Version
+ * Get Tasks Handler - XML-First Architecture
  * Retrieves all tasks for the authenticated user with pagination
- * - Session timeout validation
- * - Filters tasks by user_id for data isolation
- * - Implements pagination to reduce memory usage
- * - Returns tasks in order of creation
- * - Improved error handling
+ * - XML is PRIMARY storage (OLTP - reads first)
+ * - Database is SECONDARY storage (OLAP - fallback)
+ * - Works even if MySQL is unavailable
  */
 
 include 'auth_check.php';
+include 'xml_sync_handler.php';
 
 header('Content-Type: application/json');
 
@@ -26,47 +25,76 @@ try {
     $per_page = isset($_GET['limit']) ? min(intval($_GET['limit']), 100) : 50;
     $offset = ($page - 1) * $per_page;
 
-    // OPTIMIZED: Single query with LIMIT for memory efficiency
-    $sql = "SELECT id, title, description, status, created_at FROM " . DB_NAME . "." . DB_TABLE_TASKS . " 
-            WHERE user_id = ? 
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?";
-
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-
-    $stmt->bind_param("iii", $user_id, $per_page, $offset);
-    if (!$stmt->execute()) {
-        throw new Exception('Failed to fetch tasks: ' . $stmt->error);
-    }
-
-    $result = $stmt->get_result();
-
-    // OPTIMIZED: Stream results to reduce memory
+    $sync = getXMLSyncHandler();
     $tasks = [];
-    while ($row = $result->fetch_assoc()) {
-        $tasks[] = [
-            'id' => intval($row['id']),
-            'title' => htmlspecialchars($row['title']),
-            'description' => htmlspecialchars($row['description']),
-            'status' => $row['status'],
-            'created_at' => $row['created_at']
-        ];
+    $total = 0;
+    $data_source = 'xml';
+
+    // STEP 1: TRY TO READ FROM XML (PRIMARY STORAGE)
+    try {
+        $xml_tasks = $sync->getTasksFromXML($user_id);
+        if ($xml_tasks !== false && is_array($xml_tasks)) {
+            // Sort by created_at DESC
+            usort($xml_tasks, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+            
+            $total = count($xml_tasks);
+            $tasks = array_slice($xml_tasks, $offset, $per_page);
+            $data_source = 'xml';
+        }
+    } catch (Exception $e) {
+        error_log('[GetTasks] XML read failed: ' . $e->getMessage());
     }
 
-    $stmt->close();
+    // STEP 2: FALLBACK TO DATABASE if XML failed or empty
+    if (empty($tasks) && isset($conn) && $conn->ping()) {
+        try {
+            $sql = "SELECT id, title, description, status, created_at FROM " . DB_NAME . "." . DB_TABLE_TASKS . " 
+                    WHERE user_id = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT ? OFFSET ?";
 
-    // Get total count for pagination
-    $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE user_id = ?");
-    $count_stmt->bind_param("i", $user_id);
-    $count_stmt->execute();
-    $count_result = $count_stmt->get_result();
-    $total = intval($count_result->fetch_assoc()['total'] ?? 0);
-    $count_stmt->close();
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("iii", $user_id, $per_page, $offset);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    while ($row = $result->fetch_assoc()) {
+                        $tasks[] = [
+                            'id' => intval($row['id']),
+                            'title' => htmlspecialchars($row['title']),
+                            'description' => htmlspecialchars($row['description']),
+                            'status' => $row['status'],
+                            'created_at' => $row['created_at']
+                        ];
+                    }
+                }
+                $stmt->close();
+                
+                // Get total count
+                $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE user_id = ?");
+                if ($count_stmt) {
+                    $count_stmt->bind_param("i", $user_id);
+                    $count_stmt->execute();
+                    $count_result = $count_stmt->get_result();
+                    $total = intval($count_result->fetch_assoc()['total'] ?? 0);
+                    $count_stmt->close();
+                }
+                $data_source = 'database';
+            }
+        } catch (Exception $e) {
+            error_log('[GetTasks] Database fallback failed: ' . $e->getMessage());
+        }
+    }
 
-    // Return response with pagination info
+    // Sanitize output
+    foreach ($tasks as &$task) {
+        $task['title'] = htmlspecialchars($task['title'] ?? '');
+        $task['description'] = htmlspecialchars($task['description'] ?? '');
+    }
+
+    // Return response with pagination info and data source
     echo json_encode([
         'success' => true,
         'data' => $tasks,
@@ -75,7 +103,8 @@ try {
             'per_page' => $per_page,
             'total' => $total,
             'total_pages' => ceil($total / $per_page)
-        ]
+        ],
+        'data_source' => $data_source
     ]);
 
 } catch (Exception $e) {

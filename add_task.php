@@ -1,13 +1,12 @@
 <?php
-
- //Add Task Handler - Enhanced Version
- // Creates a new task for the authenticated user
- //- Session timeout validation
-// - User ownership verification
- // - Input validation
- // - Prepared statements for SQL safety
- // - XML synchronization for backup
- 
+/**
+ * Add Task Handler - XML-First Architecture
+ * Creates a new task for the authenticated user
+ * - XML is PRIMARY storage (OLTP - always works)
+ * - Database is SECONDARY storage (OLAP - optional sync)
+ * - Works even if MySQL is unavailable
+ * - Auto-syncs to database when available
+ */
 
 include 'auth_check.php';
 include 'xml_sync_handler.php';
@@ -45,29 +44,49 @@ try {
         throw new Exception('Task description is too long');
     }
 
-    // Insert task for the logged-in user using config constants
-    $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_TASKS . " (user_id, title, description, status, created_at) VALUES (?, ?, ?, 'pending', NOW())");
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
+    // Generate task ID (using max ID + 1 from XML or DB)
+    $sync = getXMLSyncHandler();
+    $task_id = $sync->generateNextTaskId($user_id);
+    $created_at = date('Y-m-d H:i:s');
+
+    // STEP 1: INSERT TO XML (PRIMARY STORAGE - CRITICAL)
+    // This MUST succeed for operation to continue
+    $xml_sync_success = $sync->syncTaskToXML($task_id, $user_id, $title, $description, 'pending', $created_at);
+    
+    if (!$xml_sync_success) {
+        throw new Exception('Failed to save task to primary storage');
     }
 
-    $stmt->bind_param("iss", $user_id, $title, $description);
-
-    if ($stmt->execute()) {
-        $task_id = $stmt->insert_id;
-        
-        // Sync new task to XML backup
-        $sync = getXMLSyncHandler();
-        $sync->syncTaskToXML($task_id, $user_id, $title, $description, 'pending', date('Y-m-d H:i:s'));
-        
-        echo json_encode([
-            'success' => true,
-            'task_id' => $task_id,
-            'message' => 'Task added successfully'
-        ]);
-    } else {
-        throw new Exception('Failed to add task: ' . $stmt->error);
+    // STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - NON-CRITICAL)
+    // Try to sync to database, but don't fail if unavailable
+    $db_sync_success = false;
+    $db_error = null;
+    
+    if (isset($conn) && $conn->ping()) {
+        $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_TASKS . " (id, user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)");
+        if ($stmt) {
+            $status = 'pending';
+            $stmt->bind_param("iisss", $task_id, $user_id, $title, $description, $created_at);
+            $db_sync_success = $stmt->execute();
+            if (!$db_sync_success) {
+                $db_error = $stmt->error;
+            }
+            $stmt->close();
+        } else {
+            $db_error = $conn->error;
+        }
     }
+
+    // Return success (XML write succeeded, DB sync is bonus)
+    echo json_encode([
+        'success' => true,
+        'task_id' => $task_id,
+        'message' => 'Task added successfully',
+        'storage' => [
+            'xml' => 'primary ✓',
+            'database' => $db_sync_success ? 'synced ✓' : ($db_error ? 'failed: ' . $db_error : 'unavailable')
+        ]
+    ]);
 
 } catch (Exception $e) {
     http_response_code(400);
@@ -75,9 +94,5 @@ try {
         'success' => false,
         'error' => $e->getMessage()
     ]);
-} finally {
-    if (isset($stmt)) {
-        $stmt->close();
-    }
 }
 ?>

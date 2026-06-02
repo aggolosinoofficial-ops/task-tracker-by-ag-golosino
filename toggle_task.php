@@ -1,12 +1,10 @@
 <?php
 /**
- * Toggle Task Status Handler - Enhanced Version
+ * Toggle Task Status Handler - XML-First Architecture
  * Changes task status between 'pending' and 'completed'
- * - Requires authentication with session timeout check
- * - CSRF token validation to prevent CSRF attacks
- * - Verifies user owns the task
- * - Input validation and error handling
- * - Returns JSON response
+ * - XML is PRIMARY storage (OLTP - always works)
+ * - Database is SECONDARY storage (OLAP - optional sync)
+ * - Works even if MySQL is unavailable
  */
 
 include 'auth_check.php';
@@ -48,34 +46,47 @@ try {
         throw new Exception('Invalid status');
     }
 
-    // Update task status ONLY if it belongs to the logged-in user
-    $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_TASKS . " SET status = ? WHERE id = ? AND user_id = ?");
-    if (!$stmt) {
-        throw new Exception('Database error');
+    $sync = getXMLSyncHandler();
+
+    // STEP 1: UPDATE IN XML (PRIMARY STORAGE - CRITICAL)
+    // Verify user owns task and update
+    $xml_update_success = $sync->updateTaskStatusInXML($task_id, $user_id, $status);
+    
+    if (!$xml_update_success) {
+        http_response_code(403);
+        throw new Exception('Task not found or permission denied');
     }
 
-    $stmt->bind_param("sii", $status, $task_id, $user_id);
-
-    if ($stmt->execute()) {
-        if ($stmt->affected_rows > 0) {
-            $sync = getXMLSyncHandler();
-            $sync->syncTaskUpdateToXML($task_id, ['status' => $status]);
-
-            echo json_encode(['success' => true, 'message' => 'Task status updated']);
+    // STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - NON-CRITICAL)
+    $db_sync_success = false;
+    $db_error = null;
+    
+    if (isset($conn) && $conn->ping()) {
+        $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_TASKS . " SET status = ? WHERE id = ? AND user_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("sii", $status, $task_id, $user_id);
+            $db_sync_success = $stmt->execute() && $stmt->affected_rows > 0;
+            if (!$db_sync_success) {
+                $db_error = $stmt->error;
+            }
+            $stmt->close();
         } else {
-            http_response_code(403);
-            throw new Exception('Task not found or permission denied');
+            $db_error = $conn->error;
         }
-    } else {
-        throw new Exception('Failed to update task');
     }
+
+    // Return success (XML update succeeded, DB sync is bonus)
+    echo json_encode([
+        'success' => true,
+        'message' => 'Task status updated',
+        'storage' => [
+            'xml' => 'primary ✓',
+            'database' => $db_sync_success ? 'synced ✓' : ($db_error ? 'failed: ' . $db_error : 'unavailable')
+        ]
+    ]);
 
 } catch (Exception $e) {
     http_response_code($e->getCode() ?: 400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-} finally {
-    if (isset($stmt)) {
-        $stmt->close();
-    }
 }
 ?>

@@ -363,31 +363,27 @@ function checkRateLimit($action, $max_attempts, $window_seconds)
 
 /**
  * Validate password strength
+ * UPDATED: Relaxed rules - only 8 char minimum, no forced special requirements
+ * Use validation.php module for detailed validation
+ * 
  * Returns: ['valid' => bool, 'errors' => array]
  */
 function validatePasswordStrength($password)
 {
     $errors = [];
 
+    // REQUIRED: Minimum 8 characters
     if (strlen($password) < MIN_PASSWORD_LENGTH) {
         $errors[] = "Password must be at least " . MIN_PASSWORD_LENGTH . " characters";
     }
 
+    // Maximum length check
     if (strlen($password) > MAX_PASSWORD_LENGTH) {
         $errors[] = "Password must not exceed " . MAX_PASSWORD_LENGTH . " characters";
     }
 
-    if (PASSWORD_REQUIRE_UPPERCASE && !preg_match('/[A-Z]/', $password)) {
-        $errors[] = "Password must contain at least one uppercase letter";
-    }
-
-    if (PASSWORD_REQUIRE_NUMBERS && !preg_match('/[0-9]/', $password)) {
-        $errors[] = "Password must contain at least one number";
-    }
-
-    if (PASSWORD_REQUIRE_SPECIAL && !preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]/', $password)) {
-        $errors[] = "Password must contain at least one special character (!@#$%^&* etc)";
-    }
+    // NOTE: No forced uppercase, numbers, or special character requirements
+    // All passwords >= 8 chars are valid
 
     return [
         'valid' => count($errors) === 0,

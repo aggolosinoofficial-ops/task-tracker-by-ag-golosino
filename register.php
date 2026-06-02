@@ -33,6 +33,7 @@
  */
 
 include 'auth_check.php';
+include 'validation.php';
 include 'xml_sync_handler.php';
 
 header('Content-Type: application/json');
@@ -69,66 +70,15 @@ try {
     }
 
     /**
-     * VALIDATION: Username length check (3-30 characters)
-     * Min 3: Prevents overly short usernames
-     * Max 30: Prevents overly long usernames that break UI
+     * CENTRALIZED VALIDATION: Use validation module for all rules
+     * Username: 2-30 chars, any characters (letters, numbers, emojis, spaces, symbols)
+     * Password: 8+ chars minimum, no forced requirements
+     * Uniqueness check: Only triggers if username actually exists in DB/XML
      */
-    if (strlen($username) < 3 || strlen($username) > 30) {
-        throw new Exception('Username must be between 3 and 30 characters');
+    $validation = validateRegistration($username, $password, $confirm_password);
+    if (!$validation['valid']) {
+        throw new Exception(implode('. ', $validation['errors']));
     }
-
-    /**
-     * VALIDATION: Username format check
-     * Allows: letters, numbers, spaces, emojis, underscores
-     * Blocks: SQL injection (;'"), bash commands ($()`), special chars (!@#%^&*<>|&)
-     * Whitelist approach for safety
-     */
-    // Allow alphanumeric, spaces, underscores, and Unicode (emojis)
-    if (!preg_match('/^[\w\s\u0080-\uFFFF]+$/u', $username)) {
-        throw new Exception('Username contains invalid characters. Use letters, numbers, spaces, and emojis only');
-    }
-
-    /**
-     * VALIDATION: Password confirmation match
-     * Prevents typos in password entry
-     * Client-side check but verified again on server for security
-     */
-    if ($password !== $confirm_password) {
-        throw new Exception('Passwords do not match');
-    }
-
-    /**
-     * SECURITY: Password strength validation
-     * Requires: 8+ chars, 1 uppercase, 1 number, 1 special char
-     * Prevents weak passwords that are easy to crack
-     * Configuration in config.php allows adjustment per deployment
-     */
-    $pwd_validation = validatePasswordStrength($password);
-    if (!$pwd_validation['valid']) {
-        throw new Exception(implode('. ', $pwd_validation['errors']));
-    }
-
-    /**
-     * VALIDATION: Check if username already exists
-     * Prepared statement prevents SQL injection
-     * Only checks if exists (doesn't fetch password for security)
-     */
-    $stmt = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ?");
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-
-    $stmt->bind_param("s", $username);
-    if (!$stmt->execute()) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $stmt->close();
-        throw new Exception('Username not available. Try another one');
-    }
-    $stmt->close();
 
     /**
      * SECURITY: Hash password using bcrypt

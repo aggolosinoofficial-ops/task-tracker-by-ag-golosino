@@ -10,6 +10,7 @@
  */
 
 include 'auth_check.php';
+include 'validation.php';
 
 header('Content-Type: application/json');
 
@@ -45,25 +46,44 @@ try {
 
     // Get user by username using prepared statement
     $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ?");
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
+    $user = null;
+    
+    if ($stmt) {
+        $stmt->bind_param("s", $username);
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            if ($result && $result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+            }
+            $stmt->close();
+        }
     }
-
-    $stmt->bind_param("s", $username);
-    if (!$stmt->execute()) {
-        throw new Exception('Database error: ' . $conn->error);
+    
+    // XML FALLBACK: If database unavailable, check XML backup
+    if (!$user && file_exists('users.xml')) {
+        try {
+            $xml = simplexml_load_file('users.xml');
+            if ($xml) {
+                foreach ($xml->user as $xmlUser) {
+                    if ((string)$xmlUser->username === $username) {
+                        $user = [
+                            'id' => (int)$xmlUser->id,
+                            'username' => (string)$xmlUser->username,
+                            'password_hash' => (string)$xmlUser->password_hash
+                        ];
+                        break;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // XML load failed, continue with error handling below
+        }
     }
-
-    $result = $stmt->get_result();
 
     // Use generic error message for security (don't reveal if user exists)
-    if ($result->num_rows === 0) {
+    if (!$user) {
         throw new Exception('Invalid username or password');
     }
-
-    // Get user data
-    $user = $result->fetch_assoc();
-    $stmt->close();
 
     // Verify password hash using constant-time comparison
     if (!password_verify($password, $user['password_hash'])) {

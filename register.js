@@ -88,31 +88,31 @@ function checkUsernameAvailability(username) {
 
 /**
  * Validate username format and length
+ * UPDATED RULES: 2-30 characters, any characters allowed
  * Returns error message if invalid, null if valid
  */
 function validateUsername(username) {
     if (!username) {
         return 'Username is required';
     }
-    if (username.length < 3 || username.length > 30) {
-        return 'Username must be 3-30 characters long';
+    if (username.length < 2 || username.length > 30) {
+        return 'Username must be 2-30 characters long';
     }
-    if (!/^[\w\s\u0080-\uFFFF]+$/.test(username)) {
-        return 'Username contains invalid characters. Use letters, numbers, spaces, and emojis only';
-    }
+    // Allow any characters (no format restriction)
     return null;
 }
 
 /**
- * Validate individual password requirements
+ * Validate individual password requirements (UPDATED: RELAXED RULES)
  * Returns object with boolean flags for each requirement
+ * NOTE: Only 8+ chars is REQUIRED, others are OPTIONAL (shown as warnings only)
  */
 function validatePasswordRequirements(password) {
     return {
-        length: password.length >= 8,
-        uppercase: /[A-Z]/.test(password),
-        number: /[0-9]/.test(password),
-        special: PASSWORD_SPECIAL_CHARS.test(password)
+        length: password.length >= 8,  // REQUIRED
+        uppercase: /[A-Z]/.test(password),  // Optional - for info only
+        number: /[0-9]/.test(password),  // Optional - for info only
+        special: PASSWORD_SPECIAL_CHARS.test(password)  // Optional - for info only
     };
 }
 
@@ -189,10 +189,23 @@ function handleRegistrationSubmit(e) {
     }
     
     // VALIDATION: Check password requirements
+    // UPDATED: Only 8+ chars is REQUIRED
+    // Uppercase, numbers, and special chars are optional (informational only)
     const reqs = validatePasswordRequirements(password);
-    if (!reqs.length || !reqs.uppercase || !reqs.number || !reqs.special) {
-        showMessage('Password must meet all requirements', 'error');
+    if (!reqs.length) {
+        showMessage('Password must be at least 8 characters long', 'error');
         return;
+    }
+    
+    // OPTIONAL: Warn about weak passwords (but allow them)
+    let weakWarning = [];
+    if (!reqs.uppercase) weakWarning.push('no uppercase');
+    if (!reqs.number) weakWarning.push('no numbers');
+    if (!reqs.special) weakWarning.push('no special characters');
+    
+    if (weakWarning.length > 0) {
+        // Show warning but allow submission
+        console.warn('Weak password detected:', weakWarning);
     }
     
     // Disable submit button to prevent double-submission

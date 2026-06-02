@@ -8,6 +8,7 @@
  * 
  * SECURITY:
  * - Prepared statements prevent SQL injection
+ * - Checks both DB and XML for consistency
  * - Only returns availability status (no other data)
  * - Rate limited via session to prevent brute force enumeration
  * - POST method only (prevents caching in logs)
@@ -16,8 +17,7 @@
  */
 
 include 'config.php';
-include 'db.php';
-include 'auth_check.php';
+include 'validation.php';
 
 header('Content-Type: application/json');
 
@@ -36,32 +36,19 @@ try {
         throw new Exception('Username is required');
     }
     
-    // Length validation
-    if (strlen($username) < 3 || strlen($username) > 30) {
-        throw new Exception('Invalid username length');
+    // Use centralized validation (length check and format)
+    $validation = validateUsername($username, false);
+    if (!$validation['valid']) {
+        // Return not valid, but don't reveal specific reasons (security)
+        echo json_encode([
+            'available' => false,
+            'message' => 'Invalid username'
+        ]);
+        exit;
     }
     
-    // Format validation (same as registration)
-    if (!preg_match('/^[\w\s\u0080-\uFFFF]+$/u', $username)) {
-        throw new Exception('Invalid username format');
-    }
-    
-    // Query database to check if username exists
-    $stmt = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
-    if (!$stmt) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-    
-    $stmt->bind_param("s", $username);
-    if (!$stmt->execute()) {
-        throw new Exception('Database error: ' . $conn->error);
-    }
-    
-    $result = $stmt->get_result();
-    $stmt->close();
-    
-    // Return availability status
-    if ($result->num_rows > 0) {
+    // Check if username exists (queries both DB and XML)
+    if (usernameExists($username)) {
         // Username exists - NOT available
         echo json_encode([
             'available' => false,
@@ -78,6 +65,13 @@ try {
 } catch (Exception $e) {
     http_response_code(400);
     echo json_encode([
+        'available' => false,
+        'message' => 'Error checking username: ' . $e->getMessage()
+    ]);
+}
+
+?>
+
         'available' => false,
         'error' => $e->getMessage()
     ]);

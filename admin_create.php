@@ -3,8 +3,9 @@
  * Admin Account Setup Script
  * Creates admin account with username: admin123 and password: Admin_123
  * Run this file ONCE, then delete or rename it for security
- * Access: http://localhost/to-do-app-by-ag-golosino/admin_create.php
+ * Access: http://localhost/task-tracker-by-ag-golosino/admin_create.php
  */
+
 
 include 'config.php';
 include 'db.php';

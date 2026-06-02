@@ -32,12 +32,15 @@ define('SESSION_HTTPONLY', true); // Prevent JavaScript access
 define('SESSION_CACHE_LIMITER', 'nocache');
 define('SESSION_CACHE_EXPIRE', 60);
 
-// Password policy
+// Password policy (RELAXED RULES - no forced requirements)
 define('MIN_PASSWORD_LENGTH', 8);
-define('MAX_PASSWORD_LENGTH', 128);
-define('PASSWORD_REQUIRE_UPPERCASE', true);
-define('PASSWORD_REQUIRE_NUMBERS', true);
-define('PASSWORD_REQUIRE_SPECIAL', true);
+define('MAX_PASSWORD_LENGTH', 256);
+// NOTE: Uppercase, numbers, and special chars are NOT forced
+// All passwords >= 8 chars are accepted
+// Optional warnings available via validation module
+define('PASSWORD_REQUIRE_UPPERCASE', false);
+define('PASSWORD_REQUIRE_NUMBERS', false);
+define('PASSWORD_REQUIRE_SPECIAL', false);
 
 // Rate limiting
 define('MAX_LOGIN_ATTEMPTS', 5); // Max failed attempts before lockout
@@ -50,9 +53,9 @@ define('CSRF_TOKEN_LENGTH', 32);
 define('CSRF_TOKEN_EXPIRY', 86400); // 24 hours
 
 // DEVELOPMENT MODE - Set to false in production!
-// WARNING: This disables rate limiting for testing
-// ENABLED BY DEFAULT FOR LOCAL DEVELOPMENT
-define('DEV_MODE', true);
+// WARNING: This disables rate limiting when enabled
+// DISABLED FOR PRODUCTION (rate limiting ENABLED)
+define('DEV_MODE', false);
 
 // Security headers
 define('SESSION_COOKIE_DURATION', 3600);

@@ -71,7 +71,7 @@ function requireAuth()
 /**
  * Get current logged-in user information
  * Returns array with user_id and username, or false if not logged in
- * OPTIMIZED: Uses session cache when available
+ * OPTIMIZED: Checks XML first (primary), then DB (secondary)
  */
 function getCurrentUser()
 {
@@ -83,7 +83,7 @@ function getCurrentUser()
 
     $user_id = intval($_SESSION['user_id']);
 
-    // Return cached username and role if available (reduces DB queries)
+    // Return cached session data if available
     if (isset($_SESSION['username']) && isset($_SESSION['role'])) {
         return [
             'user_id' => $user_id,
@@ -92,55 +92,51 @@ function getCurrentUser()
         ];
     }
 
-    // Return cached username if available, but still check DB for role if missing
-    if (isset($_SESSION['username'])) {
+    // Check XML first (PRIMARY storage)
+    $xml_path = __DIR__ . '/users.xml';
+    if (file_exists($xml_path)) {
+        try {
+            $xml = simplexml_load_file($xml_path);
+            if ($xml) {
+                foreach ($xml->user as $user) {
+                    if ((int)$user->id === $user_id) {
+                        $username = (string)$user->username;
+                        $role = (string)$user->role ?? 'user';
+                        $_SESSION['username'] = $username;
+                        $_SESSION['role'] = $role;
+                        return [
+                            'user_id' => $user_id,
+                            'username' => $username,
+                            'role' => $role
+                        ];
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("XML user lookup failed: " . $e->getMessage());
+        }
+    }
+
+    // Fallback to database if XML check failed or not available
+    if (isset($conn) && $conn && DB_AVAILABLE) {
         $stmt = $conn->prepare("SELECT id, username, role FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ?");
         if (!$stmt) {
-            return [
-                'user_id' => $user_id,
-                'username' => $_SESSION['username']
-            ];
+            return ['user_id' => $user_id, 'username' => $_SESSION['username'] ?? 'User'];
         }
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
             $user = $result->fetch_assoc();
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'] ?? 'user';
             $stmt->close();
-            if (isset($user['role'])) {
-                $_SESSION['role'] = $user['role'];
-            }
             return $user;
         }
         $stmt->close();
-        return [
-            'user_id' => $user_id,
-            'username' => $_SESSION['username']
-        ];
     }
 
-    // Only query database if not cached
-    $stmt = $conn->prepare("SELECT id, username, role FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ?");
-    if (!$stmt) {
-        // Fallback if role column does not exist in current schema
-        $stmt = $conn->prepare("SELECT id, username FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ?");
-        if (!$stmt) {
-            return false;
-        }
-    }
-
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $stmt->close();
-        return $user;
-    }
-
-    $stmt->close();
-    return false;
+    return ['user_id' => $user_id, 'username' => $_SESSION['username'] ?? 'User'];
 }
 
 /**

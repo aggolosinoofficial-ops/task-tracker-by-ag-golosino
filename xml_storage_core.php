@@ -18,6 +18,8 @@ class XMLStorageCore {
     private $archiveFile = 'archive_tasks.xml';
     private $mysqlAvailable = false;
     private $conn = null;
+    private $xmlCache = [];  // XML cache for performance
+    private $xmlCacheTime = []; // Cache timestamps
     
     public function __construct() {
         $this->xmlDir = dirname(__FILE__) . '/';
@@ -573,24 +575,36 @@ class XMLStorageCore {
      */
     
     /**
-     * Load XML file with lazy loading
+     * Load XML file with lazy loading and caching for 2GB RAM optimization
      */
     private function loadXML($filename, $rootTag = null) {
         try {
             $filepath = $this->xmlDir . $filename;
             
-            if (!file_exists($filepath)) {
-                return null;
+            // Check cache first (5-minute TTL)
+            if (isset($this->xmlCache[$filename]) && isset($this->xmlCacheTime[$filename])) {
+                if ((time() - $this->xmlCacheTime[$filename]) < 300) {
+                    return $this->xmlCache[$filename];
+                }
             }
             
-            // Check file size (lazy load: skip if too large)
+            if (!file_exists($filepath)) {
+                return null;
+            }\n            
+            // Check file size (lazy load: skip if too large for caching)
             if (filesize($filepath) > 10485760) {  // 10MB limit
-                error_log("[XMLLoad] File too large: $filename");
+                error_log("[XMLLoad] File too large for cache: $filename");
                 return null;
             }
             
             $xml = simplexml_load_file($filepath);
-            return $xml ?: null;
+            if (!$xml) return null;
+            
+            // Cache it for performance (only if file is reasonably sized)
+            $this->xmlCache[$filename] = $xml;
+            $this->xmlCacheTime[$filename] = time();
+            
+            return $xml;
         } catch (Exception $e) {
             error_log("[XMLLoad] Error loading $filename: " . $e->getMessage());
             return null;
@@ -598,11 +612,15 @@ class XMLStorageCore {
     }
     
     /**
-     * Save XML file with compact formatting
+     * Save XML file with compact formatting and cache invalidation
      */
     private function saveXML($xml, $filename) {
         try {
             $filepath = $this->xmlDir . $filename;
+            
+            // Clear cache for this file (since we're modifying it)
+            unset($this->xmlCache[$filename]);
+            unset($this->xmlCacheTime[$filename]);
             
             // Format and save (compact, minimal whitespace)
             $dom = dom_import_simplexml($xml)->ownerDocument;

@@ -322,6 +322,203 @@ class XMLSyncHandler
         return $this->syncRemoveArchiveTaskFromXML($archiveId);
     }
 
+    public function generateNextTaskId($userId = null) {
+        try {
+            $this->loadTasksXML();
+            $maxId = 0;
+            foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
+                $id = intval($taskElement->getAttribute('id') ?? 0);
+                if ($id > $maxId) $maxId = $id;
+            }
+            return $maxId + 1;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error generating task ID: ' . $e->getMessage());
+            return 1;
+        }
+    }
+
+    public function getTasksFromXML($userId, $limit = null, $offset = 0) {
+        try {
+            $this->loadTasksXML();
+            $tasks = [];
+            $count = 0;
+            $returned = 0;
+            foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
+                $userIdAttr = $taskElement->getAttribute('user_id');
+                if (!$userIdAttr || intval($userIdAttr) !== intval($userId)) continue;
+                if ($count < $offset) {
+                    $count++;
+                    continue;
+                }
+                if ($limit && $returned >= $limit) break;
+                $task = [];
+                foreach ($taskElement->childNodes as $node) {
+                    if ($node->nodeType === XML_ELEMENT_NODE) {
+                        $task[$node->nodeName] = $node->nodeValue;
+                    }
+                }
+                if ($taskElement->hasAttribute('id')) {
+                    $task['id'] = intval($taskElement->getAttribute('id'));
+                }
+                $tasks[] = $task;
+                $returned++;
+                $count++;
+            }
+            return $tasks;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error reading tasks: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getTaskFromXML($taskId, $userId) {
+        try {
+            $this->loadTasksXML();
+            foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
+                $elementId = intval($taskElement->getAttribute('id') ?? 0);
+                $elementUserId = intval($taskElement->getAttribute('user_id') ?? 0);
+                if ($elementId === intval($taskId) && $elementUserId === intval($userId)) {
+                    $task = ['id' => $elementId, 'user_id' => $elementUserId];
+                    foreach ($taskElement->childNodes as $node) {
+                        if ($node->nodeType === XML_ELEMENT_NODE) {
+                            $task[$node->nodeName] = $node->nodeValue;
+                        }
+                    }
+                    return $task;
+                }
+            }
+            return false;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error reading task: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateTaskInXML($taskId, $userId, $updates) {
+        try {
+            $this->loadTasksXML();
+            $updated = false;
+            foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
+                $elementId = intval($taskElement->getAttribute('id') ?? 0);
+                $elementUserId = intval($taskElement->getAttribute('user_id') ?? 0);
+                if ($elementId === intval($taskId) && $elementUserId === intval($userId)) {
+                    foreach ($updates as $key => $value) {
+                        $elements = $taskElement->getElementsByTagName($key);
+                        if ($elements->length > 0) {
+                            $elements->item(0)->nodeValue = htmlspecialchars($value);
+                        } else {
+                            $this->addXMLElement($taskElement, $key, $value, $this->tasksDom);
+                        }
+                    }
+                    $updated = true;
+                    break;
+                }
+            }
+            if ($updated && $this->validateTasksXML()) {
+                return $this->tasksDom->save($this->tasksXmlPath);
+            }
+            return $updated;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error updating task: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateTaskStatusInXML($taskId, $userId, $status) {
+        try {
+            $this->loadTasksXML();
+            foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
+                $elementId = intval($taskElement->getAttribute('id') ?? 0);
+                $elementUserId = intval($taskElement->getAttribute('user_id') ?? 0);
+                if ($elementId === intval($taskId) && $elementUserId === intval($userId)) {
+                    $statusElements = $taskElement->getElementsByTagName('status');
+                    if ($statusElements->length > 0) {
+                        $statusElements->item(0)->nodeValue = $status;
+                    } else {
+                        $this->addXMLElement($taskElement, 'status', $status, $this->tasksDom);
+                    }
+                    if ($this->validateTasksXML()) {
+                        return $this->tasksDom->save($this->tasksXmlPath);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error updating status: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function deleteTaskFromXML($taskId, $userId) {
+        try {
+            $this->loadTasksXML();
+            $found = false;
+            $tasks = $this->tasksDom->getElementsByTagName('task');
+            for ($i = $tasks->length - 1; $i >= 0; $i--) {
+                $taskElement = $tasks->item($i);
+                $elementId = intval($taskElement->getAttribute('id') ?? 0);
+                $elementUserId = intval($taskElement->getAttribute('user_id') ?? 0);
+                if ($elementId === intval($taskId) && $elementUserId === intval($userId)) {
+                    $taskElement->parentNode->removeChild($taskElement);
+                    $found = true;
+                    break;
+                }
+            }
+            if ($found && $this->validateTasksXML()) {
+                return $this->tasksDom->save($this->tasksXmlPath);
+            }
+            return $found;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error deleting task: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function archiveTaskFromXML($taskId, $userId) {
+        try {
+            $task = $this->getTaskFromXML($taskId, $userId);
+            if (!$task) return false;
+            $archiveSuccess = $this->syncArchiveTaskToXML(
+                $task['id'],
+                $task['user_id'],
+                $task['title'] ?? '',
+                $task['description'] ?? '',
+                $task['status'] ?? 'pending',
+                $task['created_at'] ?? date('Y-m-d\TH:i:s'),
+                date('Y-m-d\TH:i:s')
+            );
+            if (!$archiveSuccess) return false;
+            return $this->deleteTaskFromXML($taskId, $userId);
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error archiving task: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getArchivedTaskFromXML($archiveId, $userId) {
+        try {
+            $this->loadArchiveTasksXML();
+            foreach ($this->archiveTasksDom->getElementsByTagName('archive_task') as $taskElement) {
+                $elementId = intval($taskElement->getAttribute('id') ?? 0);
+                $elementUserId = intval($taskElement->getAttribute('user_id') ?? 0);
+                if ($elementId === intval($archiveId) && $elementUserId === intval($userId)) {
+                    $task = ['id' => $elementId, 'user_id' => $elementUserId];
+                    foreach ($taskElement->childNodes as $node) {
+                        if ($node->nodeType === XML_ELEMENT_NODE) {
+                            $task[$node->nodeName] = $node->nodeValue;
+                        }
+                    }
+                    return $task;
+                }
+            }
+            return false;
+        } catch (Exception $e) {
+            error_log('[XMLSync] Error reading archived task: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     /**
      * Sync new user to XML
      * Called after user is created in MySQL

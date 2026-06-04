@@ -7,46 +7,35 @@ $password = ""; // Default XAMPP password - change if you set a password in XAMP
 // Set socket timeout to prevent hanging
 ini_set('default_socket_timeout', 5); // 5 second timeout
 
-// Create connection without database - with error suppression for clean error handling
-@$conn = new mysqli($servername, $username, $password);
-
-// Set connection timeouts
-if ($conn) {
-    $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
-    $conn->options(MYSQLI_INIT_COMMAND, "SET SESSION sql_mode='STRICT_TRANS_TABLES'");
-    $conn->set_charset("utf8mb4");
+// Fast check if MySQL port is open (non-blocking - 2 second timeout)
+$mysql_available = false;
+$sock = @fsockopen('localhost', 3306, $errno, $errstr, 2);
+if ($sock) {
+    fclose($sock);
+    // MySQL is reachable, try connection
+    @$conn = new mysqli($servername, $username, $password);
+    if ($conn && !$conn->connect_error) {
+        $mysql_available = true;
+        $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
+        $conn->options(MYSQLI_INIT_COMMAND, "SET SESSION sql_mode='STRICT_TRANS_TABLES'");
+        $conn->set_charset("utf8mb4");
+    }
+} else {
+    // MySQL not reachable - this is OK, use XML only
+    $conn = null;
+    $mysql_available = false;
 }
 
-// Check connection - Detailed error reporting
+// Store availability flag globally
+if (!defined('DB_AVAILABLE')) {
+    define('DB_AVAILABLE', $mysql_available);
+}
+
+// Check connection - Detailed error reporting (if connection was attempted)
 if ($conn && $conn->connect_error) {
-    $errorMsg = $conn->connect_error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Database connection failed',
-            'details' => $errorMsg
-        ]);
-        exit();
-    } else {
-        http_response_code(503);
-        die("
-        <h2>Database Connection Error</h2>
-        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
-        <hr>
-        <h3>Troubleshooting:</h3>
-        <ul>
-            <li>✓ Check XAMPP Control Panel - Is MySQL running? (Should be GREEN)</li>
-            <li>✓ Try restarting MySQL from XAMPP Control Panel</li>
-            <li>✓ Check if MySQL is using port 3306 (default)</li>
-            <li>✓ Verify username 'root' and empty password in config</li>
-            <li>✓ Try: <code>mysql -u root -h localhost</code> in command line</li>
-        </ul>
-        ");
-    }
+    // Connection failed, but this is OK - system will use XML-only mode
+    error_log("MySQL connection failed: " . $conn->connect_error . " - continuing with XML-only mode");
+    $conn = null;
 }
 
 // OPTIMIZATION: Reduce memory footprint for large result sets
@@ -54,30 +43,14 @@ if ($conn) {
     $conn->set_charset("utf8mb4");
 }
 
-// Create database if it doesn't exist
-$dbname = "test";
-$sql = "CREATE DATABASE IF NOT EXISTS $dbname";
-
-if ($conn && $conn->query($sql) !== TRUE) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Error creating database',
-            'details' => $errorMsg
-        ]);
-        exit();
-    } else {
-        http_response_code(503);
-        die("
-        <h2>Database Creation Error</h2>
-        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
-        <p>Try restarting MySQL in XAMPP Control Panel</p>
-        ");
+// Create database if it doesn't exist (only if connected)
+if ($conn && DB_AVAILABLE) {
+    $dbname = "test";
+    $sql = "CREATE DATABASE IF NOT EXISTS $dbname";
+    if ($conn->query($sql) === FALSE) {
+        error_log("Database creation error: " . $conn->error . " - continuing with XML-only mode");
+    }
+}
     }
 }
 

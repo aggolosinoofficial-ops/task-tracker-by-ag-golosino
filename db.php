@@ -51,8 +51,8 @@ if ($conn && DB_AVAILABLE) {
         error_log("Database creation error: " . $conn->error . " - continuing with XML-only mode");
     }
 }
-    }
-}
+    
+
 
 // Select the database
 if (!$conn->select_db($dbname)) {

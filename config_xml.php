@@ -13,7 +13,7 @@
 define('DB_BACKEND', 'mysql');
 
 // Enable this to use both backends for redundancy
-define('USE_DUAL_STORAGE', false);
+define('USE_DUAL_STORAGE', true);
 
 // ============================================
 // DATABASE CONFIGURATION

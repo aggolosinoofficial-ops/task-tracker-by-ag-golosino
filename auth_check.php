@@ -8,16 +8,14 @@
 include 'config.php';
 include 'db.php';
 
-// Start session if not already started
+// Configure session parameters BEFORE starting session
 if (session_status() === PHP_SESSION_NONE) {
     session_name(SESSION_NAME);
-    session_set_cookie_params([
-        'lifetime' => SESSION_COOKIE_DURATION,
-        'path' => '/',
-        'secure' => SESSION_SECURE,
-        'httponly' => SESSION_HTTPONLY,
-        'samesite' => 'Strict'
-    ]);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_httponly', SESSION_HTTPONLY);
+    ini_set('session.cookie_secure', SESSION_SECURE);
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.cookie_lifetime', SESSION_COOKIE_DURATION);
     session_start();
 }
 

@@ -69,15 +69,4 @@ try {
         'message' => 'Error checking username: ' . $e->getMessage()
     ]);
 }
-
-?>
-
-        'available' => false,
-        'error' => $e->getMessage()
-    ]);
-} finally {
-    if (isset($conn)) {
-        $conn->close();
-    }
-}
 ?>

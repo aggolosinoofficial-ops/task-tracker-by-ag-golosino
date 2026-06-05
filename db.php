@@ -43,41 +43,26 @@ if ($conn) {
     $conn->set_charset("utf8mb4");
 }
 
+// Define database name
+$dbname = "test";
+
 // Create database if it doesn't exist (only if connected)
 if ($conn && DB_AVAILABLE) {
-    $dbname = "test";
     $sql = "CREATE DATABASE IF NOT EXISTS $dbname";
     if ($conn->query($sql) === FALSE) {
         error_log("Database creation error: " . $conn->error . " - continuing with XML-only mode");
     }
-}
     
-
-
-// Select the database
-if (!$conn->select_db($dbname)) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Failed to select database',
-            'details' => $errorMsg
-        ]);
-        exit();
-    } else {
-        http_response_code(503);
-        die("
-        <h2>Database Selection Error</h2>
-        <p><strong>Error:</strong> " . htmlspecialchars($errorMsg) . "</p>
-        <p>Database 'test' could not be selected. Try restarting MySQL.</p>
-        ");
+    // Select the database
+    if (!$conn->select_db($dbname)) {
+        error_log("Database selection error: " . $conn->error . " - continuing with XML-only mode");
+        $conn = null;
     }
 }
 
+// Create tables only if database connection is available
+if ($conn && DB_AVAILABLE) {
+    
 // Create users table if it doesn't exist - OPTIMIZED for 2GB RAM
 $users_sql = "CREATE TABLE IF NOT EXISTS test.users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -90,26 +75,11 @@ $users_sql = "CREATE TABLE IF NOT EXISTS test.users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($users_sql) !== TRUE) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Error creating users table',
-            'details' => $errorMsg
-        ]);
-        exit();
-    } else {
-        http_response_code(503);
-        die("Error creating users table: " . htmlspecialchars($errorMsg));
-    }
+    error_log("Warning: Could not create users table: " . $conn->error);
 }
 
 // Check if role column exists - only if needed for migrations
-if (!defined('ROLE_COLUMN_CHECKED')) {
+if ($conn && defined('DB_AVAILABLE') && DB_AVAILABLE) {
     $check_role = $conn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
                                 WHERE TABLE_NAME='users' 
                                 AND COLUMN_NAME='role' 
@@ -118,7 +88,6 @@ if (!defined('ROLE_COLUMN_CHECKED')) {
     if ($check_role && $check_role->num_rows == 0) {
         $conn->query("ALTER TABLE test.users ADD COLUMN role VARCHAR(20) DEFAULT 'user' AFTER password_hash");
     }
-    define('ROLE_COLUMN_CHECKED', true);
 }
 
 // Create tasks table if it doesn't exist
@@ -134,22 +103,7 @@ $table_sql = "CREATE TABLE IF NOT EXISTS test.tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($table_sql) !== TRUE) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Error creating tasks table',
-            'details' => $errorMsg
-        ]);
-        exit();
-    } else {
-        http_response_code(503);
-        die("Error creating tasks table: " . htmlspecialchars($errorMsg));
-    }
+    error_log("Warning: Could not create tasks table: " . $conn->error);
 }
 
 // Create archive table if it doesn't exist
@@ -166,19 +120,7 @@ $archive_sql = "CREATE TABLE IF NOT EXISTS test.archive_tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($archive_sql) !== TRUE) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Error creating archive table',
-            'details' => $errorMsg
-        ]);
-        exit();
-    }
+    error_log("Warning: Could not create archive_tasks table: " . $conn->error);
 }
 
 // Create deleted tasks table if it doesn't exist
@@ -196,19 +138,7 @@ $deleted_sql = "CREATE TABLE IF NOT EXISTS test.deleted_tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($deleted_sql) !== TRUE) {
-    $errorMsg = $conn->error;
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-    
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        http_response_code(503);
-        echo json_encode([
-            'success' => false, 
-            'error' => 'Error creating deleted_tasks table',
-            'details' => $errorMsg
-        ]);
-        exit();
-    }
+    error_log("Warning: Could not create deleted_tasks table: " . $conn->error);
 }
 
 // Create task_stats table if it doesn't exist
@@ -223,11 +153,16 @@ $stats_sql = "CREATE TABLE IF NOT EXISTS test.task_stats (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
 if ($conn->query($stats_sql) !== TRUE) {
-    // Don't error out for stats table - it's optional
     error_log("Warning: Could not create task_stats table: " . $conn->error);
 }
 
 // Set connection attributes for optimal performance on 2GB RAM systems
-$conn->set_charset("utf8mb4");
-mysqli_report(MYSQLI_REPORT_STRICT);
+if ($conn) {
+    $conn->set_charset("utf8mb4");
+}
+
+} // End of: if ($conn && DB_AVAILABLE)
+
+// Report errors as exceptions in strict mode (optional, be careful with this)
+// mysqli_report(MYSQLI_REPORT_STRICT);
 ?>

@@ -606,40 +606,57 @@ return $this->storage->addTask($userId, $title, $description);
     /**
      * Fetch tasks from MySQL
      */
-         private function fetchMySQLTasks(int $userId, int $pageSize, int $offset): array {
-        $tasks = [];
-        
-        if (!$this->mysqlConnection) {
-            return $tasks;
-        }
-        
-        $stmt = $this->mysqlConnection->prepare(
-            "SELECT id, user_id, title, description, status, created_at 
-             FROM tasks 
-             WHERE user_id = ? 
-             ORDER BY created_at DESC 
-             LIMIT ? OFFSET ?"
-        );
-        
-        if (!$stmt) {
-            $this->log('error', 'Prepare failed: ' . $this->mysqlConnection->error);
-            return $tasks;
-        }
-        
-        $stmt->bind_param('iii', $userId, $pageSize, $offset);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $tasks[] = $row;
-            }
-        }
-        
-        $stmt->close();
+private function fetchMySQLTasks(int $userId, int $pageSize, int $offset): array {
+    $tasks = [];
+    
+    if (!$this->mysqlConnection) {
         return $tasks;
     }
     
+    // ✅ Sanitize LIMIT/OFFSET first (convert to integers)
+    $pageSize = (int) max(0, $pageSize);
+    $offset = (int) max(0, $offset);
+    
+    // ✅ Embed LIMIT/OFFSET directly in query (safe since they're integers)
+    $sql = "SELECT id, user_id, title, description, status, created_at 
+            FROM tasks 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT $pageSize OFFSET $offset";
+    
+    $stmt = $this->mysqlConnection->prepare($sql);
+    
+    if (!$stmt) {
+        $this->log('error', 'Prepare failed: ' . $this->mysqlConnection->error);
+        return $tasks;
+    }
+    
+    // ✅ Only bind userId now (LIMIT/OFFSET are already in SQL)
+    $stmt->bind_param('i', $userId);
+    
+    $stmt->execute();
+    
+    // ✅ Check for execute errors
+    if ($stmt->error) {
+        $this->log('error', 'Execute failed: ' . $stmt->error);
+        return $tasks;
+    }
+    
+    $result = $stmt->get_result();
+    
+    // ✅ Check for get_result errors
+    if (!$result) {
+        $this->log('error', 'Get result failed: ' . $stmt->error);
+        return $tasks;
+    }
+    
+    while ($row = $result->fetch_assoc()) {
+        $tasks[] = $row;
+    }
+    
+    $stmt->close();
+    return $tasks;
+}
     /**
      * Update task
      * 

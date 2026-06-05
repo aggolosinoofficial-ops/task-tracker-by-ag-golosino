@@ -173,8 +173,12 @@ $username = $user ? htmlspecialchars($user['username']) : 'User';
                     throw new Error('Failed to load archive');
                 }
 
-                const tasks = await response.json();
-                displayArchiveTasks(tasks);
+                const json = await response.json();
+                if (!json.success) {
+                    throw new Error(json.error || 'Failed to load archive');
+                }
+                
+                displayArchiveTasks(json.data || []);
             } catch (error) {
                 console.error('Error loading archive:', error);
                 showNotification('Error loading archive', 'error');

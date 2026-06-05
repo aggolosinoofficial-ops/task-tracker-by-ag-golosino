@@ -102,7 +102,9 @@ function loadTasks(page = 1) {
     const loading = document.getElementById('loading');
     if (loading) loading.style.display = 'block';
     
-    fetch(`get_tasks.php?page=${page}&limit=${state.pageSize}`)
+    fetch(`get_tasks.php?page=${page}&limit=${state.pageSize}`, {
+        credentials: 'same-origin'
+    })
         .then(response => {
             if (response.status === 401) {
                 if (loading) loading.style.display = 'none';
@@ -286,6 +288,7 @@ function addTask() {
     // Get form inputs and trim whitespace
     const title = document.getElementById('title').value.trim();
     const description = document.getElementById('description').value.trim();
+    const csrfToken = document.getElementById('csrf_token')?.value || '';
 
     console.log('[addTask] Title:', title);
     console.log('[addTask] Description:', description);
@@ -294,6 +297,13 @@ function addTask() {
     if (!title) {
         console.log('[addTask] Error: Title is empty');
         showNotification('Task title is required', 'error');
+        return;
+    }
+    
+    // Validate CSRF token
+    if (!csrfToken) {
+        console.error('[addTask] Error: CSRF token not found');
+        showNotification('Security token missing. Please refresh the page.', 'error');
         return;
     }
 
@@ -314,11 +324,12 @@ function addTask() {
     // Send POST request with form data
     fetch('add_task.php', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         // URL encode the data to prevent special characters from breaking the request
-        body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`
+        body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
     .then(response => {
         // Check if response is valid JSON before parsing
@@ -362,13 +373,15 @@ function addTask() {
 
 function toggleTask(id, currentStatus) {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    const csrfToken = document.getElementById('csrf_token')?.value || '';
 
     fetch('toggle_task.php', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `id=${id}&status=${newStatus}`
+        body: `id=${id}&status=${newStatus}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
     .then(response => response.json())
     .then(result => {
@@ -404,6 +417,7 @@ function saveEdit(id) {
     const form = document.getElementById(`editForm${id}`);
     const title = form.querySelector('input').value.trim();
     const description = form.querySelector('textarea').value.trim();
+    const csrfToken = document.getElementById('csrf_token')?.value || '';
 
     if (!title) {
         showNotification('Task title is required', 'error');
@@ -412,10 +426,11 @@ function saveEdit(id) {
 
     fetch('edit_task.php', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `id=${id}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`
+        body: `id=${id}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
     .then(response => response.json())
     .then(result => {
@@ -435,12 +450,14 @@ function saveEdit(id) {
 
 function deleteTask(id) {
     if (confirm('Archive this task? You can restore it later from the Archive.')) {
+        const csrfToken = document.getElementById('csrf_token')?.value || '';
         fetch('delete_task.php', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `id=${encodeURIComponent(id)}`
+            body: `id=${encodeURIComponent(id)}&csrf_token=${encodeURIComponent(csrfToken)}`
         })
         .then(response => response.json())
         .then(result => {

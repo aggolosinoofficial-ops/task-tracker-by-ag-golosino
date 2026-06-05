@@ -587,16 +587,18 @@ class XMLStorageCore {
                     return $this->xmlCache[$filename];
                 }
             }
-            
-            if (!file_exists($filepath)) {
-                return null;
-            }\n            
-            // Check file size (lazy load: skip if too large for caching)
-            if (filesize($filepath) > 10485760) {  // 10MB limit
-                error_log("[XMLLoad] File too large for cache: $filename");
-                return null;
-            }
-            
+                        // First check for error, THEN compare
+                    $fileSize = @filesize($filepath);  // Suppress warning, get false on error
+        if ($fileSize === false) {
+            error_log("[XMLLoad] Cannot get filesize: $filename");
+            return null;
+        }
+
+        if ($fileSize > 10485760) {  // 10MB limit
+            error_log("[XMLLoad] File too large for cache: $filename");
+            return null;
+        }
+
             $xml = simplexml_load_file($filepath);
             if (!$xml) return null;
             

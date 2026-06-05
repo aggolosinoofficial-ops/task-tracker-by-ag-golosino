@@ -44,6 +44,7 @@ $username = $user ? htmlspecialchars($user['username']) : 'User';
     <div class="container">
         <h1>Add New Task</h1>
         <form id="taskForm">
+            <input type="hidden" id="csrf_token" name="csrf_token" value="">
             <input type="text" id="title" placeholder="Task Title" required>
             <textarea id="description" placeholder="Task Description"></textarea>
             <button type="submit">Add Task</button>
@@ -53,6 +54,14 @@ $username = $user ? htmlspecialchars($user['username']) : 'User';
     <script>
         // Initialize page on load
         document.addEventListener('DOMContentLoaded', function() {
+            // Load CSRF token
+            fetch('get_csrf_token.php')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.token) {
+                        document.getElementById('csrf_token').value = data.token;
+                    }
+                });
             initializeTaskForm();
         });
     </script>

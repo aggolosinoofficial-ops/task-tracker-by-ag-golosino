@@ -17,7 +17,7 @@ try {
     // Check if user is authenticated
     $user_id = checkAuth();
     if (!$user_id) {
-        http_response_code(401);
+        http_response_code(400);
         throw new Exception('Please log in to add tasks');
     }
 
@@ -25,6 +25,13 @@ try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         throw new Exception('Invalid request method');
+    }
+
+    // ✅ SECURITY: Validate CSRF token
+    $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
+    if (!verifyCSRFToken($csrf_token)) {
+        http_response_code(403);
+        throw new Exception('Invalid request token. Please refresh and try again');
     }
 
     // Get and sanitize input
@@ -63,17 +70,34 @@ try {
     $db_error = null;
     
     if (isset($conn) && $conn->ping()) {
-        $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_TASKS . " (id, user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)");
-        if ($stmt) {
-            $status = 'pending';
-            $stmt->bind_param("iisss", $task_id, $user_id, $title, $description, $created_at);
-            $db_sync_success = $stmt->execute();
-            if (!$db_sync_success) {
-                $db_error = $stmt->error;
+        // First check if user exists in database
+        $user_check = $conn->prepare("SELECT id FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ?");
+        if ($user_check) {
+            $user_check->bind_param("i", $user_id);
+            $user_check->execute();
+            $user_check->store_result();
+            $user_exists = $user_check->num_rows > 0;
+            $user_check->close();
+            
+            // Only try to insert task if user exists in database
+            if ($user_exists) {
+                $stmt = $conn->prepare("INSERT INTO " . DB_NAME . "." . DB_TABLE_TASKS . " (id, user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)");
+                if ($stmt) {
+                    $status = 'pending';
+                    $stmt->bind_param("iisss", $task_id, $user_id, $title, $description, $created_at);
+                    $db_sync_success = $stmt->execute();
+                    if (!$db_sync_success) {
+                        $db_error = $stmt->error;
+                    }
+                    $stmt->close();
+                } else {
+                    $db_error = $conn->error;
+                }
+            } else {
+                $db_error = "User not found in database (XML-only mode)";
             }
-            $stmt->close();
         } else {
-            $db_error = $conn->error;
+            $db_error = "Cannot check user: " . $conn->error;
         }
     }
 

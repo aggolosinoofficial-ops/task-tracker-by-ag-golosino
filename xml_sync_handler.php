@@ -327,7 +327,14 @@ class XMLSyncHandler
             $this->loadTasksXML();
             $maxId = 0;
             foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
-                $id = intval($taskElement->getAttribute('id') ?? 0);
+                // Try to get id from child element first
+                $idElements = $taskElement->getElementsByTagName('id');
+                if ($idElements->length > 0) {
+                    $id = intval($idElements->item(0)->nodeValue);
+                } else {
+                    // Fallback to attribute
+                    $id = intval($taskElement->getAttribute('id') ?? 0);
+                }
                 if ($id > $maxId) $maxId = $id;
             }
             return $maxId + 1;

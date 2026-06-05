@@ -51,12 +51,14 @@ try {
     if (!verifyCSRFToken($csrf_token)) {
         if ($isAjax) {
             http_response_code(403);
-            throw new Exception('Invalid request token. Please refresh and try again');
+            echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
+            exit();
         } else {
             header("Location: tasks.php?error=Invalid request token");
             exit();
         }
     }
+
 
     // Get and validate input
     $task_id = isset($_POST['id']) ? intval($_POST['id']) : 0;

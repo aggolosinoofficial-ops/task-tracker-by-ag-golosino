@@ -14,4 +14,4 @@
     <role>user</role>
     <created_at>2026-05-15T12:35:31</created_at>
   </user>
-</users>
+<user><id>3</id><username>user1</username><password_hash>$2y$10$fL8qttv2AYtGzsBiFFlSbedwGViQadPlx8sTPRyjKs5qFK/0nRH0.</password_hash><role>user</role><created_at>2026-06-05T08:36:05</created_at></user><user><id>4</id><username>user2</username><password_hash>$2y$10$kpOVfc4anH9v13SRHRL.3OauhtVOLRnlwy0FDi/ECb2/7oJZ0WQmy</password_hash><role>user</role><created_at>2026-06-05T08:38:09</created_at></user><user><id>5</id><username>testuser123</username><password_hash>$2y$10$E.tzJwstB8S7/rMKQdhtEuy0cuIlliTKYje5NX1IYFEikQS5J6dUC</password_hash><role>user</role><created_at>2026-06-05T11:04:14</created_at></user></users>

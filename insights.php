@@ -22,7 +22,7 @@ $username = $user ? htmlspecialchars($user['username']) : 'User';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Insights - To-Do List App</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260605">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .insights-grid {
@@ -153,23 +153,60 @@ $username = $user ? htmlspecialchars($user['username']) : 'User';
 <body>
     <div id="notificationContainer"></div>
 
-    <!-- User Info Bar -->
-    <div class="user-bar">
-        <div class="user-info">
-            <span class="username">Welcome, <strong>
-                    <?php echo $username; ?>
-                </strong>!</span>
+    <nav class="sidebar" id="appSidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <div class="sidebar-logo">🗂️</div>
+                <div class="sidebar-title">Task Tracker</div>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Toggle navigation">
+                ☰
+            </button>
         </div>
-        <div class="user-actions">
-            <a href="index.php" class="nav-link">Add Task</a>
-            <a href="tasks.php" class="nav-link">All Tasks</a>
-            <a href="archive.php" class="nav-link">📦 Archive</a>
+
+        <div class="sidebar-nav">
+            <a class="side-link" href="tasks.php">
+                <span class="side-icon">📝</span>
+                <span class="side-text">All Tasks</span>
+            </a>
+            <a class="side-link" href="insights.php">
+                <span class="side-icon">📊</span>
+                <span class="side-text">Insights</span>
+            </a>
+            <a class="side-link" href="index.php">
+                <span class="side-icon">➕</span>
+                <span class="side-text">Add Task</span>
+            </a>
+            <a class="side-link" href="archive.php">
+                <span class="side-icon">📦</span>
+                <span class="side-text">Archive</span>
+            </a>
+
+        </div>
+
+        <div class="sidebar-footer">
             <a href="logout.php" class="logout-btn">Logout</a>
         </div>
-    </div>
+    </nav>
 
-    <div class="container">
-        <h1>📊 Task Insights</h1>
+    <script>
+        (function () {
+            const sidebar = document.getElementById('appSidebar');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            if (!sidebar || !toggleBtn) return;
+            toggleBtn.addEventListener('click', function () {
+                sidebar.classList.toggle('collapsed');
+            });
+        })();
+    </script>
+
+    <main class="main">
+        <div class="user-info">
+            <span class="username">Welcome, <strong><?php echo $username; ?></strong>!</span>
+        </div>
+
+        <div class="container">
+            <h1>📊 Insights</h1>
         <p>Your productivity analytics and statistics</p>
 
         <div id="loading">Loading insights...</div>

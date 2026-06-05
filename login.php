@@ -29,11 +29,13 @@ try {
     }
 
     // Check rate limiting per IP
+    // NOTE: use SESSION-based rate limiting. If DEV_MODE is enabled, checkRateLimit() will bypass.
     $rate_check = checkRateLimit('login_attempts', MAX_LOGIN_ATTEMPTS_PER_IP, 3600);
     if (!$rate_check['allowed']) {
         http_response_code(429);
-        throw new Exception("Too many login attempts. Please wait " . ceil($rate_check['wait_seconds'] / 60) . " minutes");
+        throw new Exception("Too many login attempts. Please wait " . ceil(($rate_check['wait_seconds'] ?? 0) / 60) . " minutes");
     }
+
 
     // Get and sanitize input
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';

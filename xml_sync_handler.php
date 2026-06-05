@@ -65,7 +65,7 @@ class XMLSyncHandler
      * @param string $createdAt - Timestamp when task was created
      * @return boolean - true if sync successful, false on error
      */
-    public function syncTaskToXML($taskId, $userId, $title, $description, $status, $createdAt)
+    public function syncTaskToXML($taskId, $userId, $title, $description, $status, $createdAt, $category = 'personal')
     {
         try {
             // Step 1: Load the existing tasks.xml file into memory
@@ -82,6 +82,7 @@ class XMLSyncHandler
             $this->addXMLElement($taskElement, 'user_id', $userId);                     // <user_id>456</user_id>
             $this->addXMLElement($taskElement, 'title', $title);                        // <title>My Task</title>
             $this->addXMLElement($taskElement, 'description', $description);            // <description>Details here</description>
+            $this->addXMLElement($taskElement, 'category', $category);                  // <category>personal|technical</category>
             $this->addXMLElement($taskElement, 'status', $status);                      // <status>pending</status>
             $this->addXMLElement($taskElement, 'created_at', $this->normalizeDateTime($createdAt));
             
@@ -351,22 +352,30 @@ class XMLSyncHandler
             $count = 0;
             $returned = 0;
             foreach ($this->tasksDom->getElementsByTagName('task') as $taskElement) {
-                $userIdAttr = $taskElement->getAttribute('user_id');
-                if (!$userIdAttr || intval($userIdAttr) !== intval($userId)) continue;
+                // tasks.xml stores user_id as a child element, not an attribute
+                $userIdEl = $taskElement->getElementsByTagName('user_id')->item(0);
+                $userIdVal = $userIdEl ? intval($userIdEl->nodeValue) : null;
+
+                if ($userIdVal === null || $userIdVal !== intval($userId)) continue;
+
                 if ($count < $offset) {
                     $count++;
                     continue;
                 }
                 if ($limit && $returned >= $limit) break;
+
                 $task = [];
                 foreach ($taskElement->childNodes as $node) {
                     if ($node->nodeType === XML_ELEMENT_NODE) {
                         $task[$node->nodeName] = $node->nodeValue;
                     }
                 }
-                if ($taskElement->hasAttribute('id')) {
-                    $task['id'] = intval($taskElement->getAttribute('id'));
+
+                // id is also stored as child element
+                if (isset($task['id'])) {
+                    $task['id'] = intval($task['id']);
                 }
+
                 $tasks[] = $task;
                 $returned++;
                 $count++;
@@ -377,6 +386,7 @@ class XMLSyncHandler
             return false;
         }
     }
+
 
     public function getTaskFromXML($taskId, $userId) {
         try {

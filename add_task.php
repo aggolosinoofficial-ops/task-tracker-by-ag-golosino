@@ -37,6 +37,12 @@ try {
     // Get and sanitize input
     $title = isset($_POST['title']) ? trim($_POST['title']) : '';
     $description = isset($_POST['description']) ? trim($_POST['description']) : '';
+    $category = isset($_POST['category']) ? trim($_POST['category']) : 'personal';
+
+    // Validate category
+    if (!in_array($category, ['personal', 'technical'])) {
+        $category = 'personal';
+    }
 
     // Validate input
     if (empty($title)) {
@@ -58,7 +64,7 @@ try {
 
     // STEP 1: INSERT TO XML (PRIMARY STORAGE - CRITICAL)
     // This MUST succeed for operation to continue
-    $xml_sync_success = $sync->syncTaskToXML($task_id, $user_id, $title, $description, 'pending', $created_at);
+    $xml_sync_success = $sync->syncTaskToXML($task_id, $user_id, $title, $description, 'pending', $created_at, $category);
     
     if (!$xml_sync_success) {
         throw new Exception('Failed to save task to primary storage');

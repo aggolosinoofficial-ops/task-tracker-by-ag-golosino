@@ -39,50 +39,52 @@ function initPasswordToggles() {
 function checkUsernameAvailability(username) {
     // Clear previous timeout
     clearTimeout(usernameCheckTimeout);
-    
-    // Reset state
+
+    const usernameField = document.getElementById('username');
+    if (!usernameField) return;
+
+    // Reset state (we treat this as "unknown" until the server responds)
     usernameAvailable = false;
-    
+
     // Validate client-side first
     const usernameError = validateUsername(username);
-    const usernameField = document.getElementById('username');
-    
+
     if (!username) {
         usernameField.style.borderColor = '#e2e8f0';
         return;
     }
-    
+
     if (usernameError) {
         usernameField.style.borderColor = '#fc8181';
         return;
     }
-    
+
     // Debounce server check (wait 500ms after user stops typing)
     usernameCheckTimeout = setTimeout(() => {
-        // Prepare data for server check
         const formData = new FormData();
         formData.append('username', username);
-        
-        // Check availability on server
+
         fetch('check_username.php', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.available) {
-                usernameAvailable = true;
-                usernameField.style.borderColor = '#9ae6b4'; // Green
-            } else {
+            .then(response => response.json())
+            .then(data => {
+                if (data.available) {
+                    usernameAvailable = true;
+                    usernameField.style.borderColor = '#9ae6b4'; // Green
+                } else {
+                    usernameAvailable = false;
+                    usernameField.style.borderColor = '#fc8181'; // Red
+                    showMessage('Username not available. Try another one', 'warning');
+                }
+            })
+            .catch(error => {
+                // Network/server error -> do NOT block registration
+                console.error('Username check error:', error);
                 usernameAvailable = false;
-                usernameField.style.borderColor = '#fc8181'; // Red
-                showMessage('Username not available. Try another one', 'warning');
-            }
-        })
-        .catch(error => {
-            console.error('Username check error:', error);
-            usernameField.style.borderColor = '#e2e8f0';
-        });
+                usernameField.style.borderColor = '#e2e8f0';
+            });
     }, 500); // Wait 500ms after user stops typing
 }
 
@@ -177,10 +179,21 @@ function handleRegistrationSubmit(e) {
     }
     
     // VALIDATION: Check if username is available
-    if (!usernameAvailable) {
-        showMessage('Username not available. Try another one', 'error');
-        return;
+    // If the availability check hasn't completed (or failed), don't block registration.
+    // Server-side registration.php will still enforce uniqueness.
+    if (username && username.length >= 2 && username.length <= 30) {
+        if (usernameAvailable === false) {
+            // Only show a warning when the check completed negatively.
+            // (Avoid hard-blocking when request hasn't returned yet.)
+            // Heuristic: if border is red, user tried a value that is confirmed unavailable.
+            const usernameField = document.getElementById('username');
+            if (usernameField && usernameField.style.borderColor === '#fc8181') {
+                showMessage('Username not available. Try another one', 'error');
+                return;
+            }
+        }
     }
+
     
     // VALIDATION: Check if passwords match
     if (password !== confirmPassword) {

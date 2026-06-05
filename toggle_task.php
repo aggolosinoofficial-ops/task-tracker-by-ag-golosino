@@ -28,14 +28,17 @@ try {
 
     // ✅ SECURITY: Validate CSRF token
     $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
+
     if (!verifyCSRFToken($csrf_token)) {
         http_response_code(403);
-        throw new Exception('Invalid request token. Please refresh and try again');
+        echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
+        exit();
     }
 
     // Get and validate input
     $task_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
     $status = isset($_POST['status']) ? trim($_POST['status']) : '';
+
 
     // Validate input
     if ($task_id <= 0) {

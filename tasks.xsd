@@ -31,6 +31,7 @@
                     </xs:restriction>
                 </xs:simpleType>
             </xs:element>
+            <xs:element name="category" type="categoryType" minOccurs="0" default="personal"/>
             <xs:element name="status" type="statusType"/>
             <xs:element name="created_at" type="xs:dateTime"/>
         </xs:sequence>
@@ -43,6 +44,14 @@
             <xs:enumeration value="completed"/>
             <xs:enumeration value="in_progress"/>
             <xs:enumeration value="cancelled"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Category enumeration for task types -->
+    <xs:simpleType name="categoryType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="personal"/>
+            <xs:enumeration value="technical"/>
         </xs:restriction>
     </xs:simpleType>
 

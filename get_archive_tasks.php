@@ -33,7 +33,9 @@ try {
             $xml = simplexml_load_file($xml_path);
             if ($xml) {
                 $count = 0;
-                foreach ($xml->task as $task) {
+                // archive_tasks.xml uses <archive_task> nodes (not <task>)
+                foreach ($xml->archive_task as $task) {
+
                     if ((int)$task->user_id === $user_id) {
                         if ($count >= $offset && count($tasks) < $per_page) {
                             $tasks[] = [

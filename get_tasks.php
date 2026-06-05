@@ -29,16 +29,16 @@ try {
     $tasks = [];
     $total = 0;
     $data_source = 'xml';
+    
+    // Prevent undefined-variable notices if XML read throws
+    $xml_tasks = null;
 
     // STEP 1: TRY TO READ FROM XML (PRIMARY STORAGE)
     try {
         $xml_tasks = $sync->getTasksFromXML($user_id);
         if ($xml_tasks !== false && is_array($xml_tasks)) {
-            // Sort by created_at DESC
-            usort($xml_tasks, function($a, $b) {
-                return strtotime($b['created_at']) - strtotime($a['created_at']);
-            });
-            
+            // NOTE: Avoid sorting the entire XML result set (expensive for large files).
+            // We rely on XML traversal order here to serve pagination.
             $total = count($xml_tasks);
             $tasks = array_slice($xml_tasks, $offset, $per_page);
             $data_source = 'xml';
@@ -47,8 +47,16 @@ try {
         error_log('[GetTasks] XML read failed: ' . $e->getMessage());
     }
 
-    // STEP 2: FALLBACK TO DATABASE if XML failed or empty
-    if (empty($tasks) && isset($conn) && $conn->ping()) {
+    // DEBUG: expose what user_id matched and XML availability
+    // (helps confirm XML-first behavior and user_id mismatches)
+    $debug_xml_count = (is_array($xml_tasks) ? count($xml_tasks) : null);
+
+
+    // STEP 2: FALLBACK TO DATABASE only if XML failed (not if XML is just empty for this user)
+    // This prevents UI from going blank when XML is the primary write source.
+    $xml_failed = !isset($xml_tasks) || $xml_tasks === false;
+
+    if ($xml_failed && isset($conn) && $conn->ping()) {
         try {
             $sql = "SELECT id, title, description, status, created_at FROM " . DB_NAME . "." . DB_TABLE_TASKS . " 
                     WHERE user_id = ? 
@@ -70,8 +78,6 @@ try {
                         ];
                     }
                 }
-                $stmt->close();
-                
                 // Get total count
                 $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE user_id = ?");
                 if ($count_stmt) {
@@ -81,6 +87,8 @@ try {
                     $total = intval($count_result->fetch_assoc()['total'] ?? 0);
                     $count_stmt->close();
                 }
+
+                $stmt->close();
                 $data_source = 'database';
             }
         } catch (Exception $e) {
@@ -88,11 +96,20 @@ try {
         }
     }
 
+
     // Sanitize output
     foreach ($tasks as &$task) {
         $task['title'] = htmlspecialchars($task['title'] ?? '');
         $task['description'] = htmlspecialchars($task['description'] ?? '');
     }
+
+    if (isset($data_source) && $data_source === 'database') {
+        // Prevent division by zero when DB has 0 rows
+        if ($per_page <= 0) {
+            $per_page = 50;
+        }
+    }
+
 
     // Return response with pagination info and data source
     echo json_encode([
@@ -104,18 +121,20 @@ try {
             'total' => $total,
             'total_pages' => ceil($total / $per_page)
         ],
-        'data_source' => $data_source
+        'data_source' => $data_source,
+        'debug' => [
+            'session_user_id' => $user_id,
+            'xml_debug_xml_count' => $debug_xml_count ?? null
+        ]
     ]);
 
-} catch (Exception $e) {
-    http_response_code(400);
-    echo json_encode(['error' => $e->getMessage()]);
+
+} catch (Throwable $e) {
+    error_log('[GetTasks][FATAL] ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Failed to load tasks']);
 } finally {
-    if (isset($stmt)) {
-        $stmt->close();
-    }
-    if (isset($count_stmt)) {
-        $count_stmt->close();
-    }
+    // Ensure we don't attempt to close already-closed statements
+    // (mysqli throws: "mysqli_stmt object is already closed")
 }
 ?>

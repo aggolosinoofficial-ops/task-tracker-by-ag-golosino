@@ -70,8 +70,12 @@ try {
                     
                     // DB Sync
                     if (isset($conn) && $conn && !$conn->connect_error) {
+                         // Define the variable first to hold the integer value
+                        $user_id = (int)$user->id;
+
                         $stmt = $conn->prepare("UPDATE " . DB_NAME . "." . DB_TABLE_USERS . " SET role = ? WHERE id = ?");
-                        $stmt->bind_param('si', $new_role, (int)$user->id);
+                        // Use the variable $user_id instead of (int)$user->id
+                        $stmt->bind_param('si', $new_role, $user_id);
                         $stmt->execute();
                         $message = "✓ User '$target_username' is now " . strtoupper($new_role) . " (DB synced)";
                         $stmt->close();

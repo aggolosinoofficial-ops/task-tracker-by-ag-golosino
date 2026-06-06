@@ -27,7 +27,16 @@
 
 include 'config.php';
 include 'db.php';
+
+// Check if the sync handler exists before including it
+if (!file_exists('xml_sync_handler.php')) {
+    die("Setup Error: xml_sync_handler.php not found. Please ensure all files are uploaded.");
+}
 include 'xml_sync_handler.php';
+// Prevent unauthorized access after setup
+if (file_exists('setup.lock')) {
+    die("<h1>Access Denied</h1><p>Setup has already been completed. To run again, delete the <code>setup.lock</code> file from the server.</p>");
+}
 
 header('Content-Type: text/html; charset=UTF-8');
 
@@ -184,6 +193,9 @@ try {
 } catch (Exception $e) {
     $messages[] = "✗ " . $e->getMessage();
 }
+
+// Create a lock file to prevent future re-runs
+file_put_contents('setup.lock', 'locked');
 
 if ($conn) {
     $conn->close();

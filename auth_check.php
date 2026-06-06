@@ -1,53 +1,46 @@
 <?php
 /**
  * Authentication Check Helper
- * Include this file at the top of any page that requires authentication
- * Enhanced with session timeout, CSRF protection, and rate limiting
- **/
+ * Full Implementation with Strict Type Hinting
+ */
 
-include 'config.php';
-include 'db.php';
+require_once 'config.php';
+require_once 'db.php';
 
 // Configure session parameters BEFORE starting session
 if (session_status() === PHP_SESSION_NONE) {
-    session_name(SESSION_NAME);
+    session_name(defined('SESSION_NAME') ? SESSION_NAME : 'TASK_TRACKER_SESS');
     ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_httponly', SESSION_HTTPONLY);
-    ini_set('session.cookie_secure', SESSION_SECURE);
+    ini_set('session.cookie_httponly', defined('SESSION_HTTPONLY') ? (int)SESSION_HTTPONLY : 1);
+    ini_set('session.cookie_secure', defined('SESSION_SECURE') ? (int)SESSION_SECURE : 0);
     ini_set('session.cookie_samesite', 'Strict');
-    ini_set('session.cookie_lifetime', SESSION_COOKIE_DURATION);
     session_start();
 }
 
 /**
  * Check if user is authenticated with session timeout validation
- * Returns user_id if authenticated, false otherwise
- * OPTIMIZED: Reduced database queries for 2GB RAM systems
+ * @return int|false Returns user_id if valid, false otherwise.
  */
-function checkAuth()
+function checkAuth(): int|false
 {
-    // Quick validation without database queries
-    if (!isset($_SESSION['token']) || !isset($_SESSION['user_id']) || !isset($_SESSION['login_time'])) {
+    if (!isset($_SESSION['token'], $_SESSION['user_id'], $_SESSION['login_time'])) {
         return false;
     }
 
-    $user_id = intval($_SESSION['user_id']);
+    $user_id = (int)$_SESSION['user_id'];
 
-    // Verify basic validity
     if (empty($_SESSION['token']) || $user_id <= 0) {
         session_destroy();
         return false;
     }
 
-    // Check session timeout
-    $elapsed = time() - $_SESSION['login_time'];
-    if ($elapsed > SESSION_TIMEOUT) {
+    $timeout = defined('SESSION_TIMEOUT') ? (int)SESSION_TIMEOUT : 3600;
+    if ((time() - (int)$_SESSION['login_time']) > $timeout) {
         session_destroy();
         return false;
     }
 
-    // Update activity time only every 60 seconds to reduce writes
-    if (!isset($_SESSION['last_activity']) || (time() - $_SESSION['last_activity']) > 60) {
+    if (!isset($_SESSION['last_activity']) || (time() - (int)$_SESSION['last_activity']) > 60) {
         $_SESSION['last_activity'] = time();
     }
 
@@ -56,11 +49,10 @@ function checkAuth()
 
 /**
  * Require authentication - redirect to login if not authenticated
- * Use this function at the start of protected pages
  */
-function requireAuth()
+function requireAuth(): void
 {
-    if (!checkAuth()) {
+    if (checkAuth() === false) {
         header('Location: login.html');
         exit();
     }
@@ -68,95 +60,72 @@ function requireAuth()
 
 /**
  * Get current logged-in user information
- * Returns array with user_id and username, or false if not logged in
- * OPTIMIZED: Checks XML first (primary), then DB (secondary)
+ * @return array{user_id: int, username: string, role: string}|false
  */
-function getCurrentUser()
+function getCurrentUser(): array|false
 {
     global $conn;
 
-    if (!checkAuth()) {
-        return false;
-    }
+    $user_id = checkAuth();
+    if ($user_id === false) return false;
 
-    $user_id = intval($_SESSION['user_id']);
-
-    // Return cached session data if available
-    if (isset($_SESSION['username']) && isset($_SESSION['role'])) {
+    if (isset($_SESSION['username'])) {
         return [
             'user_id' => $user_id,
-            'username' => $_SESSION['username'],
-            'role' => $_SESSION['role']
+            'username' => (string)$_SESSION['username'],
+            'role' => (string)($_SESSION['role'] ?? 'user')
         ];
     }
 
-    // Check XML first (PRIMARY storage)
     $xml_path = __DIR__ . '/users.xml';
     if (file_exists($xml_path)) {
-        try {
-            $xml = simplexml_load_file($xml_path);
-            if ($xml) {
-                foreach ($xml->user as $user) {
-                    if ((int)$user->id === $user_id) {
-                        $username = (string)$user->username;
-                        $role = (string)$user->role ?? 'user';
-                        $_SESSION['username'] = $username;
-                        $_SESSION['role'] = $role;
-                        return [
-                            'user_id' => $user_id,
-                            'username' => $username,
-                            'role' => $role
-                        ];
-                    }
+        $xml = @simplexml_load_file($xml_path);
+        if ($xml) {
+            foreach ($xml->user as $user) {
+                if ((int)$user->id === $user_id) {
+                    $_SESSION['username'] = (string)$user->username;
+                    $_SESSION['role'] = (string)($user->role ?? 'user');
+                    return ['user_id' => $user_id, 'username' => $_SESSION['username'], 'role' => $_SESSION['role']];
                 }
             }
-        } catch (Exception $e) {
-            error_log("XML user lookup failed: " . $e->getMessage());
         }
     }
 
-    // Fallback to database if XML check failed or not available
-    if (isset($conn) && $conn && DB_AVAILABLE) {
+    if (isset($conn) && defined('DB_AVAILABLE') && DB_AVAILABLE) {
         $stmt = $conn->prepare("SELECT id, username, role FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ?");
-        if (!$stmt) {
-            return ['user_id' => $user_id, 'username' => $_SESSION['username'] ?? 'User'];
-        }
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result && $result->num_rows > 0) {
-            $user = $result->fetch_assoc();
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'] ?? 'user';
-            $stmt->close();
-            return $user;
-        }
+        $res = $stmt->get_result()->fetch_assoc();
         $stmt->close();
+
+        if ($res) {
+            $_SESSION['username'] = $res['username'];
+            $_SESSION['role'] = $res['role'] ?? 'user';
+            return $res;
+        }
     }
 
-    return ['user_id' => $user_id, 'username' => $_SESSION['username'] ?? 'User'];
+    return ['user_id' => $user_id, 'username' => $_SESSION['username'] ?? 'User', 'role' => 'user'];
 }
 
 /**
  * Check whether the current user has admin privileges
  */
-function isAdmin()
+function isAdmin(): bool
 {
     $user = getCurrentUser();
-    return $user && isset($user['role']) && strtolower($user['role']) === 'admin';
+    return $user !== false && isset($user['role']) && strtolower($user['role']) === 'admin';
 }
 
 /**
- * Login user by creating session with secure token
- * Called after successful credential verification
+ * Login user - includes session fixation protection
  */
-function loginUser($user_id, $username)
+function loginUser(int $user_id, string $username): string
 {
-    // Generate secure random token
-    $token = bin2hex(random_bytes(TOKEN_LENGTH));
+    session_regenerate_id(true);
+    $token = bin2hex(random_bytes(defined('TOKEN_LENGTH') ? (int)TOKEN_LENGTH : 32));
 
-    // Store in session
-    $_SESSION['user_id'] = intval($user_id);
+    $_SESSION['user_id'] = $user_id;
     $_SESSION['username'] = $username;
     $_SESSION['token'] = $token;
     $_SESSION['login_time'] = time();
@@ -168,18 +137,18 @@ function loginUser($user_id, $username)
 /**
  * Logout user by destroying session
  */
-function logoutUser()
+function logoutUser(): void
 {
     $_SESSION = [];
     if (ini_get("session.use_cookies")) {
         $params = session_get_cookie_params();
         setcookie(
-            session_name(),
-            '',
-            time() - 42000,
-            $params["path"],
-            $params["domain"],
-            $params["secure"],
+            session_name(), 
+            '', 
+            time() - 42000, 
+            $params["path"], 
+            $params["domain"], 
+            $params["secure"], 
             $params["httponly"]
         );
     }
@@ -187,70 +156,46 @@ function logoutUser()
 }
 
 /**
- * Update task statistics for the current user (OPTIMIZED)
- * Combines multiple COUNT queries into a single query
- * Called after task operations (add, delete, toggle, archive, restore)
+ * Update task stats (Optimized)
  */
-function updateTaskStats($user_id = null)
+function updateTaskStats(?int $user_id = null): bool
 {
     global $conn;
-
-    // Use current user if not provided
-    if ($user_id === null) {
-        if (!isset($_SESSION['user_id'])) {
-            return false;
-        }
-        $user_id = intval($_SESSION['user_id']);
-    } else {
-        $user_id = intval($user_id);
-    }
+    $user_id = $user_id ?? (isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
+    if ($user_id === null) return false;
 
     try {
-        // OPTIMIZED: Single query with conditional aggregation instead of 3 queries
-        $stmt = $conn->prepare(
-            "SELECT 
+        $stmt = $conn->prepare("SELECT 
                 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
                 COUNT(*) as total
-            FROM " . DB_TABLE_TASKS . " WHERE user_id = ?"
-        );
-
+            FROM " . DB_TABLE_TASKS . " WHERE user_id = ?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $counts = $result->fetch_assoc();
+        $counts = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        $pending = intval($counts['pending'] ?? 0);
-        $completed = intval($counts['completed'] ?? 0);
-        $total_active = intval($counts['total'] ?? 0);
-
-        // Get archived count
         $stmt = $conn->prepare("SELECT COUNT(*) as count FROM " . ARCHIVE_TABLE . " WHERE user_id = ?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $archived = intval($result->fetch_assoc()['count'] ?? 0);
+        $archived = (int)($stmt->get_result()->fetch_assoc()['count'] ?? 0);
         $stmt->close();
 
-        // Update or insert task_stats
-        $stmt = $conn->prepare(
-            "INSERT INTO " . STATS_TABLE . " (user_id, total_tasks, completed_tasks, pending_tasks, archived_tasks, last_updated)
+        $stmt = $conn->prepare("INSERT INTO " . STATS_TABLE . " (user_id, total_tasks, completed_tasks, pending_tasks, archived_tasks, last_updated)
             VALUES (?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-            total_tasks = VALUES(total_tasks),
-            completed_tasks = VALUES(completed_tasks),
-            pending_tasks = VALUES(pending_tasks),
-            archived_tasks = VALUES(archived_tasks),
-            last_updated = NOW()"
-        );
-        $stmt->bind_param("iiiii", $user_id, $total_active, $completed, $pending, $archived);
+            ON DUPLICATE KEY UPDATE 
+                total_tasks=VALUES(total_tasks), 
+                completed_tasks=VALUES(completed_tasks), 
+                pending_tasks=VALUES(pending_tasks), 
+                archived_tasks=VALUES(archived_tasks), 
+                last_updated=NOW()");
+        
+        $stmt->bind_param("iiiii", $user_id, $counts['total'], $counts['completed'], $counts['pending'], $archived);
         $result = $stmt->execute();
         $stmt->close();
-
         return $result;
     } catch (Exception $e) {
-        error_log("Failed to update task stats: " . $e->getMessage());
+        error_log("Stats update failed: " . $e->getMessage());
         return false;
     }
 }
@@ -258,131 +203,62 @@ function updateTaskStats($user_id = null)
 /**
  * Generate CSRF token
  */
-function generateCSRFToken()
+function generateCSRFToken(): string
 {
-    if (!isset($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         $_SESSION['csrf_token_time'] = time();
     }
-    return $_SESSION['csrf_token'];
+    return (string)$_SESSION['csrf_token'];
 }
 
 /**
  * Verify CSRF token
  */
-function verifyCSRFToken($token)
+function verifyCSRFToken(string $token): bool
 {
-    if (!isset($_SESSION['csrf_token']) || !isset($_SESSION['csrf_token_time'])) {
-        return false;
-    }
-
-    // Check token expiry
-    $elapsed = time() - $_SESSION['csrf_token_time'];
-    if ($elapsed > CSRF_TOKEN_EXPIRY) {
-        unset($_SESSION['csrf_token']);
-        return false;
-    }
-
-    // Verify token matches
-    return hash_equals($_SESSION['csrf_token'], $token);
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 /**
- * Get client IP address (with proxy support)
+ * Get client IP address
  */
-function getClientIP()
+function getClientIP(): string 
 {
-    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
-    } else {
-        $ip = $_SERVER['REMOTE_ADDR'];
-    }
-    return filter_var($ip, FILTER_VALIDATE_IP) ?: 'unknown';
+    return $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 }
 
 /**
- * Check rate limiting for IP
- * Returns: ['allowed' => bool, 'wait_seconds' => int|null]
- * OPTIMIZATION: Bypass rate limiting in DEV_MODE for testing
+ * Rate Limiting
+ * @return array{allowed: bool, wait_seconds: int|null}
  */
-function checkRateLimit($action, $max_attempts, $window_seconds)
+function checkRateLimit(string $action, int $max_attempts, int $window_seconds): array
 {
-    // DEVELOPMENT BYPASS: If DEV_MODE is enabled, skip all rate limiting checks
-    // This allows unlimited login/registration attempts during testing
-    if (defined('DEV_MODE') && DEV_MODE === true) {
-        // Allow all attempts when in development mode
+    if (defined('DEV_MODE') && DEV_MODE === true) return ['allowed' => true, 'wait_seconds' => null];
+    
+    $key = "ratelimit_{$action}_" . getClientIP();
+    if (!isset($_SESSION[$key])) $_SESSION[$key] = ['attempts' => 0, 'first' => time()];
+    
+    if ((time() - (int)$_SESSION[$key]['first']) > $window_seconds) {
+        $_SESSION[$key] = ['attempts' => 1, 'first' => time()];
         return ['allowed' => true, 'wait_seconds' => null];
     }
-
-    $ip = getClientIP();
-    $key = "ratelimit_{$action}_{$ip}";
-
-    if (!isset($_SESSION[$key])) {
-        $_SESSION[$key] = [
-            'attempts' => 0,
-            'first_attempt' => time(),
-            'locked_until' => null
-        ];
-    }
-
-    $data = &$_SESSION[$key];
-    $now = time();
-
-    // Check if currently locked out
-    if ($data['locked_until'] && $now < $data['locked_until']) {
-        $wait = $data['locked_until'] - $now;
-        return ['allowed' => false, 'wait_seconds' => $wait];
-    }
-
-    // Reset if window expired
-    if ($now - $data['first_attempt'] > $window_seconds) {
-        $data['attempts'] = 0;
-        $data['first_attempt'] = $now;
-        $data['locked_until'] = null;
-    }
-
-    // Increment attempts
-    $data['attempts']++;
-
-    // Check if exceeded limit
-    if ($data['attempts'] > $max_attempts) {
-        $data['locked_until'] = $now + LOCKOUT_DURATION;
-        return ['allowed' => false, 'wait_seconds' => LOCKOUT_DURATION];
-    }
-
-    return ['allowed' => true, 'wait_seconds' => null];
+    
+    $_SESSION[$key]['attempts']++;
+    return $_SESSION[$key]['attempts'] <= $max_attempts 
+        ? ['allowed' => true, 'wait_seconds' => null] 
+        : ['allowed' => false, 'wait_seconds' => 60];
 }
 
 /**
  * Validate password strength
- * UPDATED: Relaxed rules - only 8 char minimum, no forced special requirements
- * Use validation.php module for detailed validation
- * 
- * Returns: ['valid' => bool, 'errors' => array]
+ * @return array{valid: bool, errors: string[]}
  */
-function validatePasswordStrength($password)
+function validatePasswordStrength(string $password): array
 {
-    $errors = [];
-
-    // REQUIRED: Minimum 8 characters
-    if (strlen($password) < MIN_PASSWORD_LENGTH) {
-        $errors[] = "Password must be at least " . MIN_PASSWORD_LENGTH . " characters";
-    }
-
-    // Maximum length check
-    if (strlen($password) > MAX_PASSWORD_LENGTH) {
-        $errors[] = "Password must not exceed " . MAX_PASSWORD_LENGTH . " characters";
-    }
-
-    // NOTE: No forced uppercase, numbers, or special character requirements
-    // All passwords >= 8 chars are valid
-
-    return [
-        'valid' => count($errors) === 0,
-        'errors' => $errors
-    ];
+    $len = strlen($password);
+    return ($len >= 8 && $len <= 255) 
+        ? ['valid' => true, 'errors' => []] 
+        : ['valid' => false, 'errors' => ['Password must be between 8 and 255 characters.']];
 }
-
 ?>

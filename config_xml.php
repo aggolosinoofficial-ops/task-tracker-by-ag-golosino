@@ -1,34 +1,31 @@
 <?php
 /**
  * Database Configuration
- * Switch between MySQL and XML backends here
+ * Uses Environment Variables for security and Factory pattern for scalability
  */
 
 // ============================================
 // BACKEND CONFIGURATION
 // ============================================
-// Set to 'mysql' to use MySQL database
-// Set to 'xml' to use XML local storage
-// ============================================
-define('DB_BACKEND', 'mysql');
-
-// Enable this to use both backends for redundancy
-define('USE_DUAL_STORAGE', true);
+// Retrieve from ENV if possible, else default
+define('DB_BACKEND', getenv('DB_BACKEND') ?: 'mysql');
+define('USE_DUAL_STORAGE', false); 
 
 // ============================================
-// DATABASE CONFIGURATION
+// DATABASE CONFIGURATION (Security: Use Environment Variables)
 // ============================================
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'test');
+// In production, do NOT hardcode these. Use a .env file or server env vars.
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: ''); // WARNING: Never commit real passwords
+define('DB_NAME', getenv('DB_NAME') ?: 'test');
 
 // ============================================
 // XML CONFIGURATION
 // ============================================
 define('XML_FILE_PATH', __DIR__ . '/tasks.xml');
 define('XSD_FILE_PATH', __DIR__ . '/tasks.xsd');
-define('VALIDATE_XML', true); // Enable/disable XSD validation
+define('VALIDATE_XML', true);
 
 // ============================================
 // APPLICATION SETTINGS
@@ -37,40 +34,49 @@ define('LOG_ERRORS', true);
 define('ERROR_LOG_FILE', __DIR__ . '/error.log');
 
 /**
- * Get configured database adapter
+ * Get configured database adapter (Factory Pattern)
+ * @param mixed $conn Optional existing connection
  * @return DatabaseAdapter
  */
-function getDatabase($conn = null)
+function getDatabase($conn = null): object
 {
     require_once 'db_adapter.php';
 
+    // Check if we need to return a special Dual-Storage adapter
+    if (defined('USE_DUAL_STORAGE') && USE_DUAL_STORAGE) {
+        // You would implement a class that writes to both
+        return new DatabaseAdapter('dual', $conn);
+    }
+
     if (DB_BACKEND === 'mysql') {
         return new DatabaseAdapter('mysql', $conn);
-    } else if (DB_BACKEND === 'xml') {
+    } 
+    
+    if (DB_BACKEND === 'xml') {
         return new DatabaseAdapter('xml');
     }
 
-    throw new Exception('Invalid DB_BACKEND configuration');
+    throw new Exception('Invalid DB_BACKEND configuration: ' . DB_BACKEND);
 }
 
 /**
- * Get XML handler directly (if needed)
- * @return XMLTaskHandler
+ * Get XML handler directly
  */
-function getXMLHandler()
+function getXMLHandler(): object
 {
     require_once 'xml_handler.php';
     return new XMLTaskHandler(XML_FILE_PATH);
 }
 
 /**
- * Log error to file
+ * Log error to file with basic security validation
  */
-function logError($message)
+function logError(string $message): void
 {
     if (LOG_ERRORS) {
         $timestamp = date('Y-m-d H:i:s');
-        $logMessage = "[$timestamp] $message\n";
+        $logMessage = "[$timestamp] $message" . PHP_EOL;
+        // Ensure the directory is writable by the web server user (www-data)
         error_log($logMessage, 3, ERROR_LOG_FILE);
     }
 }

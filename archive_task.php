@@ -27,37 +27,46 @@ try {
         throw new Exception('Failed to archive task');
     }
     
+   // DB sync block
     $db_synced = false;
     if (defined('DB_AVAILABLE') && DB_AVAILABLE && isset($conn)) {
         try {
+            // 1. Start transaction
+            $conn->begin_transaction();
+
+            // 2. Fetch task (Guard Clause)
             $stmt = $conn->prepare("SELECT * FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
-            if ($stmt) {
-                $stmt->bind_param('ii', $task_id, $user_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result->num_rows > 0) {
-                    $task = $result->fetch_assoc();
-                    $archive_stmt = $conn->prepare("INSERT INTO " . DB_NAME . ".archive_tasks (user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)");
-                    if ($archive_stmt) {
-                        $archive_stmt->bind_param('issss', $user_id, $task['title'], $task['description'], $task['status'], $task['created_at']);
-                        if ($archive_stmt->execute()) {
-                            $delete_stmt = $conn->prepare("DELETE FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
-                            if ($delete_stmt) {
-                                $delete_stmt->bind_param('ii', $task_id, $user_id);
-                                $db_synced = $delete_stmt->execute();
-                                $delete_stmt->close();
-                            }
-                        }
-                        $archive_stmt->close();
-                    }
-                }
-                $stmt->close();
+            $stmt->bind_param('ii', $task_id, $user_id);
+            $stmt->execute();
+            $task = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$task) {
+                throw new Exception("Task not found in DB.");
             }
+
+            // 3. Insert into Archive
+            $archive_stmt = $conn->prepare("INSERT INTO " . DB_NAME . ".archive_tasks (user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)");
+            $archive_stmt->bind_param('issss', $user_id, $task['title'], $task['description'], $task['status'], $task['created_at']);
+            $archive_stmt->execute();
+            $archive_stmt->close();
+
+            // 4. Delete from Tasks
+            $delete_stmt = $conn->prepare("DELETE FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?");
+            $delete_stmt->bind_param('ii', $task_id, $user_id);
+            $delete_stmt->execute();
+            $delete_stmt->close();
+
+            // 5. Commit all changes
+            $conn->commit();
+            $db_synced = true;
+
         } catch (Exception $e) {
+            // Rollback if anything fails
+            $conn->rollback();
             error_log("[ArchiveTask] DB sync error: " . $e->getMessage());
         }
     }
-    
     echo json_encode([
         'success' => true,
         'message' => 'Task archived successfully',

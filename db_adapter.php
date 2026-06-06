@@ -1,202 +1,149 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Database Adapter - Unified Interface for MySQL and XML Storage
- * Allows seamless switching between database backends
+ * Database Adapter
+ * Unified Interface for MySQL and XML Storage
+ * Part 1 of 2
  */
 
 class DatabaseAdapter
 {
-    private $backend; // 'mysql' or 'xml'
-    private $conn;
-    private $xmlHandler;
+    private string $backend;
+    private ?mysqli $conn;
+    private ?XMLTaskHandler $xmlHandler = null;
 
-    public function __construct($backend = 'mysql', $conn = null)
+    public function __construct(string $backend = 'mysql', ?mysqli $conn = null)
     {
         $this->backend = $backend;
 
         if ($backend === 'mysql') {
             $this->conn = $conn;
-        } else if ($backend === 'xml') {
-            require_once 'xml_handler.php';
-            $this->xmlHandler = new XMLTaskHandler();
+        } elseif ($backend === 'xml') {
+            if (file_exists('xml_handler.php')) {
+                require_once 'xml_handler.php';
+                $this->xmlHandler = new XMLTaskHandler();
+            } else {
+                throw new Exception("XML Handler file not found.");
+            }
         }
     }
 
-    /**
-     * Get all tasks for a user
-     */
-    public function getTasks($userId)
+    // --- PUBLIC INTERFACE ---
+
+    public function getTasks(int $userId): array
     {
-        if ($this->backend === 'mysql') {
-            return $this->getTasksMySQL($userId);
-        } else {
-            return $this->getTasksXML($userId);
-        }
+        return ($this->backend === 'mysql') ? $this->getTasksMySQL($userId) : $this->getTasksXML($userId);
     }
 
-    /**
-     * Add a new task
-     */
-    public function addTask($userId, $title, $description = '')
+    public function addTask(int $userId, string $title, string $description = ''): array
     {
-        if ($this->backend === 'mysql') {
-            return $this->addTaskMySQL($userId, $title, $description);
-        } else {
-            return $this->addTaskXML($userId, $title, $description);
-        }
+        return ($this->backend === 'mysql') ? $this->addTaskMySQL($userId, $title, $description) : $this->addTaskXML($userId, $title, $description);
     }
 
-    /**
-     * Update task status
-     */
-    public function updateTaskStatus($taskId, $status)
+    public function updateTaskStatus(int $taskId, string $status): array
     {
-        if ($this->backend === 'mysql') {
-            return $this->updateTaskStatusMySQL($taskId, $status);
-        } else {
-            return $this->updateTaskStatusXML($taskId, $status);
-        }
+        return ($this->backend === 'mysql') ? $this->updateTaskStatusMySQL($taskId, $status) : $this->updateTaskStatusXML($taskId, $status);
     }
 
-    /**
-     * Delete a task
-     */
-    public function deleteTask($taskId)
+    public function deleteTask(int $taskId): array
     {
-        if ($this->backend === 'mysql') {
-            return $this->deleteTaskMySQL($taskId);
-        } else {
-            return $this->deleteTaskXML($taskId);
-        }
+        return ($this->backend === 'mysql') ? $this->deleteTaskMySQL($taskId) : $this->deleteTaskXML($taskId);
     }
+    // --- PRIVATE MYSQL METHODS ---
 
-    // ==================== MYSQL METHODS ====================
-
-    private function getTasksMySQL($userId)
+    private function getTasksMySQL(int $userId): array
     {
-        $sql = "SELECT id, title, description, status, created_at FROM test.tasks 
-                WHERE user_id = ? 
-                ORDER BY created_at DESC";
-
+        if (!$this->conn) return ['error' => 'No database connection'];
+        
+        $sql = "SELECT id, title, description, status, created_at FROM test.tasks WHERE user_id = ? ORDER BY created_at DESC";
         $stmt = $this->conn->prepare($sql);
-        if (!$stmt) {
-            return ['error' => 'Database error: ' . $this->conn->error];
-        }
+        if (!$stmt) return ['error' => $this->conn->error];
 
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
 
         $tasks = [];
-        if ($result && $result->num_rows > 0) {
+        if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $tasks[] = $row;
             }
         }
-
         $stmt->close();
         return $tasks;
     }
 
-    private function addTaskMySQL($userId, $title, $description)
+    private function addTaskMySQL(int $userId, string $title, string $description): array
     {
-        $stmt = $this->conn->prepare("INSERT INTO test.tasks (user_id, title, description, status) VALUES (?, ?, ?, 'pending')");
-        if (!$stmt) {
-            return ['success' => false, 'error' => 'Database error: ' . $this->conn->error];
-        }
+        if (!$this->conn) return ['success' => false, 'error' => 'No database connection'];
 
+        $stmt = $this->conn->prepare("INSERT INTO test.tasks (user_id, title, description, status) VALUES (?, ?, ?, 'pending')");
         $stmt->bind_param("iss", $userId, $title, $description);
 
         if ($stmt->execute()) {
-            $result = [
-                'success' => true,
-                'message' => 'Task added successfully',
-                'id' => $stmt->insert_id
-            ];
+            $id = $stmt->insert_id;
             $stmt->close();
-            return $result;
-        } else {
-            $result = ['success' => false, 'error' => 'Error: ' . $stmt->error];
-            $stmt->close();
-            return $result;
+            return ['success' => true, 'id' => $id];
         }
+        $error = $stmt->error;
+        $stmt->close();
+        return ['success' => false, 'error' => $error];
     }
 
-    private function updateTaskStatusMySQL($taskId, $status)
+    private function updateTaskStatusMySQL(int $taskId, string $status): array
     {
+        if (!$this->conn) return ['success' => false, 'error' => 'No database connection'];
+        
         $stmt = $this->conn->prepare("UPDATE test.tasks SET status = ? WHERE id = ?");
-        if (!$stmt) {
-            return ['success' => false, 'error' => 'Database error: ' . $this->conn->error];
-        }
-
         $stmt->bind_param("si", $status, $taskId);
-
-        if ($stmt->execute()) {
-            $result = ['success' => true, 'message' => 'Task updated successfully'];
-            $stmt->close();
-            return $result;
-        } else {
-            $result = ['success' => false, 'error' => 'Error: ' . $stmt->error];
-            $stmt->close();
-            return $result;
-        }
+        $result = $stmt->execute();
+        $stmt->close();
+        return ['success' => (bool)$result];
     }
 
-    private function deleteTaskMySQL($taskId)
+    private function deleteTaskMySQL(int $taskId): array
     {
+        if (!$this->conn) return ['success' => false, 'error' => 'No database connection'];
+
         $stmt = $this->conn->prepare("DELETE FROM test.tasks WHERE id = ?");
-        if (!$stmt) {
-            return ['success' => false, 'error' => 'Database error: ' . $this->conn->error];
-        }
-
         $stmt->bind_param("i", $taskId);
-
-        if ($stmt->execute()) {
-            $result = ['success' => true, 'message' => 'Task deleted successfully'];
-            $stmt->close();
-            return $result;
-        } else {
-            $result = ['success' => false, 'error' => 'Error: ' . $stmt->error];
-            $stmt->close();
-            return $result;
-        }
+        $result = $stmt->execute();
+        $stmt->close();
+        return ['success' => (bool)$result];
     }
 
-    // ==================== XML METHODS ====================
+    // --- PRIVATE XML METHODS ---
 
-    private function getTasksXML($userId)
+    private function getTasksXML(int $userId): array
     {
-        $tasks = $this->xmlHandler->getTasks($userId);
-        return $tasks ?: [];
+        return $this->xmlHandler ? $this->xmlHandler->getTasks($userId) : [];
     }
 
-    private function addTaskXML($userId, $title, $description)
+    private function addTaskXML(int $userId, string $title, string $description): array
     {
+        if (!$this->xmlHandler) return ['success' => false];
+        
         $taskId = $this->xmlHandler->getNextTaskId();
-
         $taskData = [
             'id' => $taskId,
             'user_id' => $userId,
             'title' => $title,
             'description' => $description,
             'status' => 'pending',
-            'created_at' => date('c') // ISO 8601 format
+            'created_at' => date('c')
         ];
-
-        return array_merge(
-            $this->xmlHandler->addTask($taskData),
-            ['id' => $taskId]
-        );
+        return array_merge($this->xmlHandler->addTask($taskData), ['id' => $taskId]);
     }
 
-    private function updateTaskStatusXML($taskId, $status)
+    private function updateTaskStatusXML(int $taskId, string $status): array
     {
-        return $this->xmlHandler->updateTask($taskId, ['status' => $status]);
+        return $this->xmlHandler ? $this->xmlHandler->updateTask($taskId, ['status' => $status]) : ['success' => false];
     }
 
-    private function deleteTaskXML($taskId)
+    private function deleteTaskXML(int $taskId): array
     {
-        return $this->xmlHandler->deleteTask($taskId);
+        return $this->xmlHandler ? $this->xmlHandler->deleteTask($taskId) : ['success' => false];
     }
 }
 ?>

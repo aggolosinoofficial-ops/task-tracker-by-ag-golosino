@@ -1,83 +1,64 @@
 <?php
 /**
  * Configuration file for the To-Do App
- * Store all constants and configuration settings here
- * OPTIMIZED for 2GB RAM systems
+ * Optimized for 2GB RAM production environments
  */
 
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', ''); // Default XAMPP password - change if needed
-define('DB_NAME', 'test');
+// Database configuration (Uses ENV variables if available, otherwise defaults)
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: ''); // Ensure this is not committed to git/version control
+define('DB_NAME', getenv('DB_NAME') ?: 'test');
+
 define('DB_TABLE_USERS', 'users');
 define('DB_TABLE_TASKS', 'tasks');
 define('ARCHIVE_TABLE', 'archive_tasks');
 define('DELETED_TABLE', 'deleted_tasks');
 define('STATS_TABLE', 'task_stats');
 
-// OPTIMIZATION: Query limits and pagination
-define('DEFAULT_PAGE_SIZE', 50);      // Tasks per page
-define('MAX_PAGE_SIZE', 100);         // Maximum allowed page size
-define('QUERY_TIMEOUT', 30);          // Max execution time for queries
+// Pagination and Performance
+define('DEFAULT_PAGE_SIZE', 50);
+define('MAX_PAGE_SIZE', 100);
+define('QUERY_TIMEOUT', 30);
 
-// Session configuration
-define('SESSION_TIMEOUT', 3600); // 1 hour in seconds
-define('TOKEN_LENGTH', 32); // Bytes for random_bytes()
+// Session Security
+define('SESSION_TIMEOUT', 3600);
+define('TOKEN_LENGTH', 32);
 define('SESSION_NAME', 'todo_app');
-define('SESSION_SECURE', false); // Set to true in production with HTTPS
-define('SESSION_HTTPONLY', true); // Prevent JavaScript access
+define('SESSION_SECURE', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on'); // Auto-detect HTTPS
+define('SESSION_HTTPONLY', true);
 
-// OPTIMIZATION: Reduce memory footprint
-define('SESSION_CACHE_LIMITER', 'nocache');
-define('SESSION_CACHE_EXPIRE', 60);
-
-// Password policy (RELAXED RULES - no forced requirements)
+// Password Policy
 define('MIN_PASSWORD_LENGTH', 8);
 define('MAX_PASSWORD_LENGTH', 256);
-// NOTE: Uppercase, numbers, and special chars are NOT forced
-// All passwords >= 8 chars are accepted
-// Optional warnings available via validation module
-define('PASSWORD_REQUIRE_UPPERCASE', false);
-define('PASSWORD_REQUIRE_NUMBERS', false);
-define('PASSWORD_REQUIRE_SPECIAL', false);
 
-// Rate limiting
-define('MAX_LOGIN_ATTEMPTS', 5); // Max failed attempts before lockout
-define('LOCKOUT_DURATION', 900); // 15 minutes in seconds
-define('MAX_REGISTRATION_PER_IP', 3); // Per hour
-define('MAX_LOGIN_ATTEMPTS_PER_IP', 10); // Per hour
+// Rate Limiting
+define('MAX_LOGIN_ATTEMPTS', 5);
+define('LOCKOUT_DURATION', 900);
+define('MAX_REGISTRATION_PER_IP', 3);
+define('MAX_LOGIN_ATTEMPTS_PER_IP', 10);
 
-// CSRF protection
+// CSRF
 define('CSRF_TOKEN_LENGTH', 32);
-define('CSRF_TOKEN_EXPIRY', 86400); // 24 hours
+define('CSRF_TOKEN_EXPIRY', 86400);
 
-// DEVELOPMENT MODE - Set to false in production!
-// WARNING: This disables rate limiting when enabled
-// DISABLED FOR PRODUCTION (rate limiting ENABLED)
+// Development Mode
 define('DEV_MODE', false);
 
-// Security headers
-define('SESSION_COOKIE_DURATION', 3600);
+// Path Calculation
+$scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+define('BASE_URL', $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/task-tracker-by-ag-golosino/');
 
-// Paths
-$scheme = 'http';
-if (isset($_SERVER['REQUEST_SCHEME'])) {
-    $scheme = $_SERVER['REQUEST_SCHEME'];
-} elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-    $scheme = 'https';
-}
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-define('BASE_URL', $scheme . '://' . $host . '/task-tracker-by-ag-golosino/');
-
-// Error handling
+// Error Handling & Performance Optimization
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
+// Ensure your web server has write permissions to this file
+ini_set('error_log', __DIR__ . '/php-error.log'); 
 
-// OPTIMIZATION: Memory and performance settings for 2GB RAM
-ini_set('memory_limit', '128M');              // Reasonable limit for shared hosting
-ini_set('max_execution_time', 30);            // Prevent long-running queries
-ini_set('default_socket_timeout', 15);        // Quick timeout
-ini_set('mysql.connect_timeout', 10);         // Database connection timeout
+// Memory/Execution limits for 2GB RAM
+ini_set('memory_limit', '128M');
+ini_set('max_execution_time', 30);
+ini_set('default_socket_timeout', 15);
+ini_set('mysql.connect_timeout', 10);
 ?>

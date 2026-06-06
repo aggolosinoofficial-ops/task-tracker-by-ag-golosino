@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
 
-    <!-- Root element for tasks collection -->
     <xs:element name="tasks">
         <xs:complexType>
             <xs:sequence>
@@ -10,34 +9,32 @@
         </xs:complexType>
     </xs:element>
 
-    <!-- Task element definition -->
     <xs:complexType name="taskType">
         <xs:sequence>
             <xs:element name="id" type="xs:positiveInteger"/>
             <xs:element name="user_id" type="xs:positiveInteger"/>
-            <xs:element name="title">
-                <xs:simpleType>
-                    <xs:restriction base="xs:string">
-                        <xs:minLength value="1"/>
-                        <xs:maxLength value="255"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:element>
-            <xs:element name="description">
-                <xs:simpleType>
-                    <xs:restriction base="xs:string">
-                        <xs:minLength value="0"/>
-                        <xs:maxLength value="1000"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:element>
+            <xs:element name="title" type="string255"/>
+            <xs:element name="description" type="string1000"/>
             <xs:element name="category" type="categoryType" minOccurs="0" default="personal"/>
             <xs:element name="status" type="statusType"/>
             <xs:element name="created_at" type="xs:dateTime"/>
         </xs:sequence>
     </xs:complexType>
 
-    <!-- Status enumeration for valid task states -->
+    <xs:simpleType name="string255">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="255"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="string1000">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="0"/>
+            <xs:maxLength value="1000"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <xs:simpleType name="statusType">
         <xs:restriction base="xs:string">
             <xs:enumeration value="pending"/>
@@ -47,7 +44,6 @@
         </xs:restriction>
     </xs:simpleType>
 
-    <!-- Category enumeration for task types -->
     <xs:simpleType name="categoryType">
         <xs:restriction base="xs:string">
             <xs:enumeration value="personal"/>

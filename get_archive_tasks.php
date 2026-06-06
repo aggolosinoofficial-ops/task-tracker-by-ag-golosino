@@ -2,8 +2,6 @@
 /**
  * Get Archived Tasks Handler - XML-First Architecture
  * Retrieves archived tasks for user
- * PRIMARY: archive_tasks.xml
- * SECONDARY: DB fallback
  */
 
 include 'auth_check.php';
@@ -24,43 +22,55 @@ try {
     
     $tasks = [];
     $total = 0;
-    $source = 'xml';
+    $source = 'none'; // Track where data comes from
     
     // STEP 1: Try XML first (PRIMARY)
-    try {
-        $xml_path = __DIR__ . '/archive_tasks.xml';
-        if (file_exists($xml_path)) {
-            $xml = simplexml_load_file($xml_path);
-            if ($xml) {
-                $count = 0;
-                // archive_tasks.xml uses <archive_task> nodes (not <task>)
-                foreach ($xml->archive_task as $task) {
-
-                    if ((int)$task->user_id === $user_id) {
-                        if ($count >= $offset && count($tasks) < $per_page) {
-                            $tasks[] = [
-                                'id' => (int)$task->id,
-                                'title' => (string)$task->title,
-                                'description' => (string)$task->description,
-                                'status' => (string)$task->status,
-                                'created_at' => (string)$task->created_at,
-                                'archived_at' => (string)$task->archived_at ?? ''
-                            ];
-                        }
-                        $count++;
+    $xml_path = __DIR__ . '/archive_tasks.xml';
+    if (file_exists($xml_path)) {
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_file($xml_path);
+        
+        if ($xml !== false && isset($xml->archive_task)) {
+            $source = 'xml';
+            $count = 0;
+            
+            foreach ($xml->archive_task as $task) {
+                if ((int)$task->user_id === $user_id) {
+                    if ($count >= $offset && count($tasks) < $per_page) {
+                        $tasks[] = [
+                            'id' => (int)$task->id,
+                            'title' => (string)$task->title,
+                            'description' => (string)$task->description,
+                            'status' => (string)$task->status,
+                            'created_at' => (string)$task->created_at,
+                            'archived_at' => (string)($task->archived_at ?? '')
+                        ];
                     }
+                    $count++;
                 }
-                $total = $count;
             }
+            $total = $count;
         }
-    } catch (Exception $e) {
-        error_log('[GetArchive] XML read failed: ' . $e->getMessage());
+        libxml_clear_errors();
     }
     
-    // STEP 2: Fallback to DB if XML empty
+    // STEP 2: Fallback to DB if XML was empty or failed
     if (empty($tasks) && defined('DB_AVAILABLE') && DB_AVAILABLE && isset($conn)) {
+        $source = 'database';
         try {
-            $sql = "SELECT id, title, description, status, created_at, archived_at FROM " . DB_NAME . ".archive_tasks WHERE user_id = ? ORDER BY archived_at DESC LIMIT ? OFFSET ?";
+            // Count total for pagination
+            $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM " . DB_NAME . ".archive_tasks WHERE user_id = ?");
+            if ($count_stmt) {
+                $count_stmt->bind_param('i', $user_id);
+                $count_stmt->execute();
+                $total = (int)$count_stmt->get_result()->fetch_assoc()['total'];
+                $count_stmt->close();
+            }
+
+            // Fetch page results
+            $sql = "SELECT id, title, description, status, created_at, archived_at 
+                    FROM " . DB_NAME . ".archive_tasks 
+                    WHERE user_id = ? ORDER BY archived_at DESC LIMIT ? OFFSET ?";
             $stmt = $conn->prepare($sql);
             if ($stmt) {
                 $stmt->bind_param('iii', $user_id, $per_page, $offset);
@@ -70,16 +80,6 @@ try {
                     $tasks[] = $row;
                 }
                 $stmt->close();
-                
-                $count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM " . DB_NAME . ".archive_tasks WHERE user_id = ?");
-                if ($count_stmt) {
-                    $count_stmt->bind_param('i', $user_id);
-                    $count_stmt->execute();
-                    $count_result = $count_stmt->get_result();
-                    $total = (int)$count_result->fetch_assoc()['total'];
-                    $count_stmt->close();
-                }
-                $source = 'database';
             }
         } catch (Exception $e) {
             error_log('[GetArchive] DB fallback failed: ' . $e->getMessage());
@@ -92,6 +92,7 @@ try {
         'pagination' => ['page' => $page, 'limit' => $per_page, 'total' => $total],
         'source' => $source
     ]);
+
 } catch (Exception $e) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

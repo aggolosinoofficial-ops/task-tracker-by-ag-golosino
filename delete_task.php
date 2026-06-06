@@ -1,18 +1,21 @@
 <?php
 /**
  * Delete Task Handler - XML-First (Archive via XML)
- * Fixes previous PHP parse error and returns valid JSON for AJAX.
+ * Handles deletion of a task by archiving it into XML first,
+ * with a best-effort synchronization to the MySQL database.
  */
 
 include 'auth_check.php';
 include 'xml_sync_handler.php';
 
+// Detect if this is an AJAX request to return JSON
 $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 if ($isAjax) {
     header('Content-Type: application/json');
 }
 
 try {
+    // 1. Authentication
     $user_id = checkAuth();
     if (!$user_id) {
         if ($isAjax) {
@@ -23,6 +26,7 @@ try {
         exit();
     }
 
+    // 2. Request Method Validation
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         if ($isAjax) {
             http_response_code(405);
@@ -32,6 +36,7 @@ try {
         exit();
     }
 
+    // 3. CSRF Validation
     $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
     if (!verifyCSRFToken($csrf_token)) {
         if ($isAjax) {
@@ -43,7 +48,7 @@ try {
         exit();
     }
 
-
+    // 4. Input Validation
     $task_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
     if ($task_id <= 0) {
         throw new Exception('Invalid task ID');
@@ -51,7 +56,7 @@ try {
 
     $sync = getXMLSyncHandler();
 
-    // STEP 1: Load task from XML (primary)
+    // 5. STEP 1: Load task from XML (Primary Source)
     $task = $sync->getTaskFromXML($task_id, $user_id);
     if (!$task) {
         if ($isAjax) {
@@ -62,8 +67,7 @@ try {
         exit();
     }
 
-    // STEP 2: Archive from XML
-    // (move to archive_tasks.xml backup)
+    // 6. STEP 2: Archive from XML (Primary Action)
     $archiveOk = $sync->archiveTaskFromXML($task_id, $user_id);
     if (!$archiveOk) {
         if ($isAjax) {
@@ -74,16 +78,16 @@ try {
         exit();
     }
 
-    // STEP 3: Best-effort sync to MySQL (non-critical)
+    // 7. STEP 3: Best-effort sync to MySQL (Non-critical)
     $db_sync_success = false;
     $db_error = null;
 
     if (isset($conn) && $conn && $conn->ping()) {
         try {
-            // Insert into archive table
             $status = $task['status'] ?? 'pending';
             $created_at = $task['created_at'] ?? date('Y-m-d H:i:s');
 
+            // Insert into archive table
             $insert = $conn->prepare(
                 "INSERT INTO " . DB_NAME . "." . ARCHIVE_TABLE . " (user_id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)"
             );
@@ -95,7 +99,7 @@ try {
                 $insert->close();
             }
 
-            // Delete from active tasks
+            // Delete from active tasks table
             $stmt = $conn->prepare(
                 "DELETE FROM " . DB_NAME . "." . DB_TABLE_TASKS . " WHERE id = ? AND user_id = ?"
             );
@@ -112,6 +116,7 @@ try {
         }
     }
 
+    // 8. Return Success Response
     if ($isAjax) {
         echo json_encode([
             'success' => true,
@@ -128,6 +133,7 @@ try {
     exit();
 
 } catch (Exception $e) {
+    // Error Handling
     if ($isAjax) {
         http_response_code($e->getCode() ?: 400);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -136,3 +142,4 @@ try {
     }
     exit();
 }
+?>

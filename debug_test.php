@@ -3,9 +3,17 @@
  * Debug Test Page
  * Tests all components of the to-do app
  */
+session_start();
 
-include 'config.php';
-include 'db.php';
+// 1. SECURITY: Only allow access if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    die("Access Denied: You must be logged in to view this debug page.");
+}
+
+// 2. DEPENDENCIES
+if (file_exists('config.php')) include 'config.php';
+if (file_exists('db.php')) include 'db.php';
 
 header('Content-Type: text/html; charset=UTF-8');
 ?>
@@ -16,84 +24,18 @@ header('Content-Type: text/html; charset=UTF-8');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Debug Test - To-Do App</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-        .test-section {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f9f9f9;
-            border-left: 4px solid #667eea;
-            border-radius: 4px;
-        }
-        .test-item {
-            margin: 10px 0;
-            padding: 10px;
-            background: white;
-            border-radius: 4px;
-        }
-        .status {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .success {
-            background: #d4edda;
-            color: #155724;
-        }
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .info {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-        code {
-            background: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 10px 5px 10px 0;
-        }
-        button:hover {
-            background: #764ba2;
-        }
-        #testOutput {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f4f4f4;
-            border-radius: 4px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            max-height: 400px;
-            overflow-y: auto;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        .test-section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #667eea; border-radius: 4px; }
+        .test-item { margin: 10px 0; padding: 10px; background: white; border-radius: 4px; }
+        .status { display: inline-block; padding: 5px 10px; border-radius: 3px; font-weight: bold; margin-left: 10px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 10px 5px 10px 0; }
+        button:hover { background: #764ba2; }
+        #testOutput { margin-top: 20px; padding: 15px; background: #1e1e1e; color: #00ff00; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -105,14 +47,11 @@ header('Content-Type: text/html; charset=UTF-8');
             <div class="test-item">
                 <?php
                 try {
-                    if ($conn && !$conn->connect_error) {
+                    if (isset($conn) && !$conn->connect_error) {
                         echo "MySQL Connection: <span class='status success'>✓ Connected</span><br>";
-                        echo "Host: " . DB_HOST . " | User: " . DB_USER . "<br>";
-                        
-                        // Check tables exist
-                        $tables = ['users', 'tasks', 'archive_tasks', 'task_stats'];
+                        $tables = ['users', 'tasks'];
                         foreach ($tables as $table) {
-                            $result = $conn->query("SHOW TABLES FROM " . DB_NAME . " LIKE '$table'");
+                            $result = $conn->query("SHOW TABLES LIKE '$table'");
                             if ($result && $result->num_rows > 0) {
                                 echo "Table <code>$table</code>: <span class='status success'>✓ Exists</span><br>";
                             } else {
@@ -120,11 +59,9 @@ header('Content-Type: text/html; charset=UTF-8');
                             }
                         }
                     } else {
-                        echo "MySQL Connection: <span class='status error'>✗ Failed</span>";
+                        echo "MySQL Connection: <span class='status error'>✗ Failed/Not Initialized</span>";
                     }
-                } catch (Exception $e) {
-                    echo "Error: " . $e->getMessage();
-                }
+                } catch (Exception $e) { echo "Error: " . $e->getMessage(); }
                 ?>
             </div>
         </div>
@@ -155,115 +92,61 @@ header('Content-Type: text/html; charset=UTF-8');
             output.scrollTop = output.scrollHeight;
         }
 
-        function clearLog() {
-            document.getElementById('testOutput').textContent = '';
+        function clearLog() { document.getElementById('testOutput').textContent = ''; }
+
+        async function fetchWrapper(url, options = {}) {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            return await response.json();
         }
 
-        function testLogin(username, password) {
+        async function testLogin(username, password) {
             clearLog();
-            log(`Testing login with username: ${username}`);
-            
-            fetch('get_csrf_token.php')
-                .then(r => r.json())
-                .then(data => {
-                    log(`✓ CSRF Token: ${data.token.substring(0, 10)}...`);
-                    
-                    const formData = new FormData();
-                    formData.append('username', username);
-                    formData.append('password', password);
-                    formData.append('csrf_token', data.token);
-                    
-                    return fetch('login.php', {
-                        method: 'POST',
-                        body: formData
-                    });
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        log(`✓ Login successful for user: ${data.username}`);
-                        log(`✓ User ID: ${data.user_id}`);
-                    } else {
-                        log(`✗ Login failed: ${data.error}`);
-                    }
-                })
-                .catch(e => log(`✗ Error: ${e.message}`));
+            log(`Testing login for: ${username}`);
+            try {
+                const tokenData = await fetchWrapper('get_csrf_token.php');
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('csrf_token', tokenData.token);
+                
+                const loginData = await fetchWrapper('login.php', { method: 'POST', body: formData });
+                log(loginData.success ? `✓ Login successful: ${loginData.username}` : `✗ Login failed: ${loginData.error}`);
+            } catch (e) { log('✗ Error: ' + e.message); }
         }
 
-        function testGetTasks() {
+        async function testGetTasks() {
             clearLog();
             log('Fetching tasks...');
-            
-            fetch('get_tasks.php')
-                .then(r => {
-                    if (r.status === 401) {
-                        throw new Error('Not authenticated - login first');
-                    }
-                    return r.json();
-                })
-                .then(data => {
-                    log(`✓ Response received`);
-                    log(`✓ Format: ${data.success ? 'paginated' : 'unknown'}`);
-                    if (data.data) {
-                        log(`✓ Tasks count: ${data.data.length}`);
-                        log(`✓ Pagination: Page ${data.pagination.page} of ${data.pagination.total_pages}`);
-                        if (data.data.length > 0) {
-                            log(`\nFirst task:`);
-                            log(JSON.stringify(data.data[0], null, 2));
-                        }
-                    }
-                })
-                .catch(e => log(`✗ Error: ${e.message}`));
+            try {
+                const data = await fetchWrapper('get_tasks.php');
+                log('✓ Response received');
+                log(JSON.stringify(data, null, 2));
+            } catch (e) { log('✗ Error: ' + e.message); }
         }
 
-        function testAddTask() {
+        async function testAddTask() {
             clearLog();
             log('Adding test task...');
-            
-            const title = `Test Task ${Date.now()}`;
-            const description = 'This is a test task created at ' + new Date().toLocaleString();
-            
-            fetch('add_task.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}`
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    log(`✓ Task added successfully`);
-                    log(`✓ Task ID: ${data.task_id}`);
-                    log(`\nRefetching task list...`);
-                    setTimeout(testGetTasks, 500);
-                } else {
-                    log(`✗ Failed: ${data.error}`);
-                }
-            })
-            .catch(e => log(`✗ Error: ${e.message}`));
+            try {
+                const data = await fetchWrapper('add_task.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `title=Test+Task+${Date.now()}&description=Auto-generated+test`
+                });
+                log(data.success ? `✓ Task added successfully (ID: ${data.task_id})` : `✗ Failed: ${data.error}`);
+            } catch (e) { log('✗ Error: ' + e.message); }
         }
 
-        function testCSRFToken() {
+        async function testCSRFToken() {
             clearLog();
-            log('Getting CSRF token...');
-            
-            fetch('get_csrf_token.php')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success && data.token) {
-                        log(`✓ Token generated successfully`);
-                        log(`✓ Token: ${data.token.substring(0, 20)}...`);
-                        log(`✓ Length: ${data.token.length} characters`);
-                    } else {
-                        log(`✗ Failed: ${data.error || 'Unknown error'}`);
-                    }
-                })
-                .catch(e => log(`✗ Error: ${e.message}`));
+            try {
+                const data = await fetchWrapper('get_csrf_token.php');
+                log('✓ Token: ' + data.token.substring(0, 15) + '...');
+            } catch (e) { log('✗ Error: ' + e.message); }
         }
 
-        // Log initial state
-        log('Debug test page ready. Click buttons to run tests.');
+        log('Debug test page ready.');
     </script>
 </body>
 </html>

@@ -7,15 +7,27 @@
 require_once 'config.php';
 require_once 'db.php';
 
-// Configure session parameters BEFORE starting session
-if (session_status() === PHP_SESSION_NONE) {
+// Session is intentionally NOT started at include-time.
+// Starting sessions and/or sending headers before an API endpoint sets its
+// response headers can cause non-JSON output. 
+
+function ensureSessionStarted(): void
+{
+    if (session_status() !== PHP_SESSION_NONE) {
+        return;
+    }
+
+    // Configure session parameters BEFORE starting session
     session_name(defined('SESSION_NAME') ? SESSION_NAME : 'TASK_TRACKER_SESS');
     ini_set('session.use_only_cookies', 1);
     ini_set('session.cookie_httponly', defined('SESSION_HTTPONLY') ? (int)SESSION_HTTPONLY : 1);
     ini_set('session.cookie_secure', defined('SESSION_SECURE') ? (int)SESSION_SECURE : 0);
     ini_set('session.cookie_samesite', 'Strict');
+
+    // Avoid any output/headers issues: session_start() should not echo anything.
     session_start();
 }
+
 
 /**
  * Check if user is authenticated with session timeout validation
@@ -23,9 +35,12 @@ if (session_status() === PHP_SESSION_NONE) {
  */
 function checkAuth(): int|false
 {
+    ensureSessionStarted();
+
     if (!isset($_SESSION['token'], $_SESSION['user_id'], $_SESSION['login_time'])) {
         return false;
     }
+
 
     $user_id = (int)$_SESSION['user_id'];
 

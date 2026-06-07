@@ -94,3 +94,75 @@ Stack trace:
 #0 C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db_debug_schema.php(21): mysqli->query('SHOW CREATE TAB...')
 #1 {main}
   thrown in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db_debug_schema.php on line 21
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:12:07 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:14:29 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:14:34 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:14:41 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:14:42 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:14:46 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:15:04 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:15:05 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:15:06 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Warning:  Constant DB_HOST already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 7
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Warning:  Constant DB_USER already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 8
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Warning:  Constant DB_PASS already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 9
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Warning:  Constant DB_NAME already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 10
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Warning:  Constant DB_AVAILABLE already defined in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\config.php on line 13
+[07-Jun-2026 07:17:58 Europe/Berlin] PHP Fatal error:  Cannot redeclare getDatabaseConnection() (previously declared in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php:16) in C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino\db.php on line 47

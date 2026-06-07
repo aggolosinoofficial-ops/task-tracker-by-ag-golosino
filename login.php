@@ -28,8 +28,9 @@ require_once 'db.php';
 // We support XML-first login, so we must NOT fatal if $conn is null.
 $conn = getDatabaseConnection();
 
-include 'auth_check.php';
+require_once 'AuthService.php';
 include 'validation.php';
+
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -40,16 +41,21 @@ try {
         throw new Exception('Method not allowed');
     }
 
-    // Verify CSRF token
+// Verify CSRF token
     $csrf_token = isset($_POST['csrf_token']) ? trim($_POST['csrf_token']) : '';
-    if (!verifyCSRFToken($csrf_token)) {
+
+    $auth = new AuthService();
+
+    if (!$auth->verifyCSRFToken($csrf_token)) {
         http_response_code(403);
         throw new Exception('Invalid request token. Please refresh and try again');
     }
 
     // Check rate limiting per IP
     // NOTE: use SESSION-based rate limiting. If DEV_MODE is enabled, checkRateLimit() will bypass.
-    $rate_check = checkRateLimit('login_attempts', MAX_LOGIN_ATTEMPTS_PER_IP, 3600);
+    $rate_check = $auth->checkRateLimit('login_attempts', MAX_LOGIN_ATTEMPTS_PER_IP, 3600);
+
+
     if (!$rate_check['allowed']) {
         http_response_code(429);
         throw new Exception("Too many login attempts. Please wait " . ceil(($rate_check['wait_seconds'] ?? 0) / 60) . " minutes");
@@ -69,65 +75,63 @@ try {
     $user = null;
     $source = '';
     
-    // STEP 1: Check XML first (primary storage)
-    try {
-        $xml_path = __DIR__ . '/users.xml';
-        if (file_exists($xml_path)) {
-            $xml = simplexml_load_file($xml_path);
-            if ($xml) {
-                foreach ($xml->user as $xmlUser) {
-                    if ((string)$xmlUser->username === $username) {
+// STEP 1: Check DATABASE first (primary storage)
+    if ($conn === null) {
+        // No DB connection; fall back to XML-only login.
+    } else {
+        try {
+            // Avoid get_result() (requires mysqlnd). Use bind_result/fetch instead.
+            $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param("s", $username);
+                if ($stmt->execute()) {
+                    $stmt->bind_result($uid, $uname, $phash);
+                    if ($stmt->fetch()) {
                         $user = [
-                            'id' => (int)$xmlUser->id,
-                            'username' => (string)$xmlUser->username,
-                            'password_hash' => (string)$xmlUser->password_hash
+                            'id' => (int)$uid,
+                            'username' => (string)$uname,
+                            'password_hash' => (string)$phash
                         ];
-                        $source = 'xml';
-                        break;
+                        $source = 'database';
                     }
                 }
+                $stmt->close();
             }
+        } catch (Exception $e) {
+            error_log("Database login check error: " . $e->getMessage());
         }
-    } catch (Exception $e) {
-        error_log("XML login check error: " . $e->getMessage());
     }
-    
-    // STEP 2: If not found in XML, check DATABASE (secondary storage)
+
+    // STEP 2: If not found in DATABASE, check XML fallback
     if (!$user) {
-        // If DB isn't available, silently fall back to XML-only login.
-        if ($conn === null) {
-            // No DB connection; proceed without setting $user.
-        } else {
-            try {
-                // Avoid get_result() (requires mysqlnd). Use bind_result/fetch instead.
-                $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
-                if ($stmt) {
-                    $stmt->bind_param("s", $username);
-                    if ($stmt->execute()) {
-                        $stmt->bind_result($uid, $uname, $phash);
-                        if ($stmt->fetch()) {
+        try {
+            $xml_path = __DIR__ . '/users.xml';
+            if (file_exists($xml_path)) {
+                $xml = simplexml_load_file($xml_path);
+                if ($xml) {
+                    foreach ($xml->user as $xmlUser) {
+                        if ((string)$xmlUser->username === $username) {
                             $user = [
-                                'id' => (int)$uid,
-                                'username' => (string)$uname,
-                                'password_hash' => (string)$phash
+                                'id' => (int)$xmlUser->id,
+                                'username' => (string)$xmlUser->username,
+                                'password_hash' => (string)$xmlUser->password_hash
                             ];
-                            $source = 'database';
+                            $source = 'xml';
+                            break;
                         }
                     }
-                    $stmt->close();
                 }
-            } catch (Exception $e) {
-                error_log("Database login check error: " . $e->getMessage());
             }
+        } catch (Exception $e) {
+            error_log("XML login check error: " . $e->getMessage());
         }
     }
-
-
 
     // Use generic error message for security (don't reveal if user exists)
     if (!$user) {
         throw new Exception('Invalid username or password');
     }
+
 
     // Verify password hash using constant-time comparison
     if (!password_verify($password, $user['password_hash'])) {
@@ -137,7 +141,8 @@ try {
     }
 
     // Password verified - log in the user
-    $token = loginUser($user['id'], $user['username']);
+    $token = $auth->loginUser($user['id'], $user['username']);
+
 
     // Regenerate session ID to prevent session fixation attacks
     session_regenerate_id(true);

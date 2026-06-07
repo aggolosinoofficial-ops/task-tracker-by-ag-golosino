@@ -27,7 +27,7 @@ try {
         throw new Exception('Username and password are required');
     }
 
-    // Centralized validation (checks XML first for uniqueness)
+// Centralized validation (checks DB first for uniqueness)
     $validation = validateRegistration($username, $password, $confirm_password);
     if (!$validation['valid']) {
         throw new Exception(implode('. ', $validation['errors']));
@@ -38,56 +38,40 @@ try {
     $created_at = date('Y-m-d\TH:i:s');
     $role = 'user';
 
-    // --- STEP 1: INSERT TO XML (PRIMARY STORAGE - OLTP) ---
-    $xml_success = false;
+// --- STEP 1: INSERT TO DATABASE (PRIMARY STORAGE - OLTP) ---
+    $db_success = false;
     $user_id = 0;
-    $users_xml_path = __DIR__ . '/users.xml';
-    
-    if (!file_exists($users_xml_path)) {
-        file_put_contents($users_xml_path, '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL . '<users></users>');
+
+    $conn = getDatabaseConnection();
+
+    if ($conn === null) {
+        throw new Exception('Database unavailable for registration.');
     }
 
-    // Open file and acquire exclusive lock to prevent race conditions
-    $fp = fopen($users_xml_path, 'c+');
-    if (!$fp || !flock($fp, LOCK_EX)) {
-        throw new Exception('System busy, please try again.');
+    // Ensure role + schema exist; users table is the source of truth
+    $stmt = $conn->prepare(
+        "INSERT INTO " . DB_NAME . "." . DB_TABLE_USERS . " (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)"
+    );
+    if (!$stmt) {
+        throw new Exception('Failed to prepare registration query');
     }
 
-    try {
-        $xml_content = stream_get_contents($fp);
-        $xml = empty($xml_content) ? new SimpleXMLElement('<users></users>') : new SimpleXMLElement($xml_content);
-        
-        // Find next ID
-        $max_id = 0;
-        foreach ($xml->user as $u) {
-            $current_id = (int)$u->id;
-            if ($current_id > $max_id) $max_id = $current_id;
-        }
-        $user_id = $max_id + 1;
-        
-        // Add user to XML
-        $user_element = $xml->addChild('user');
-        $user_element->addChild('id', $user_id);
-        $user_element->addChild('username', htmlspecialchars($username));
-        $user_element->addChild('password_hash', $password_hash);
-        $user_element->addChild('role', $role);
-        $user_element->addChild('created_at', $created_at);
-        
-        // Save back to file
-        ftruncate($fp, 0);
-        rewind($fp);
-        fwrite($fp, $xml->asXML());
-        $xml_success = true;
-    } finally {
-        flock($fp, LOCK_UN); // Release lock
-        fclose($fp);
+    $stmt->bind_param("ssss", $username, $password_hash, $role, $created_at);
+    if (!$stmt->execute()) {
+        $err = $conn->error ?: 'Insert failed';
+        $stmt->close();
+        throw new Exception('Registration failed: ' . $err);
     }
 
-    if (!$xml_success || $user_id <= 0) {
-        throw new Exception('Failed to create user account in XML storage.');
+    $user_id = (int)$conn->insert_id;
+    $db_success = $user_id > 0;
+    $stmt->close();
+
+    if (!$db_success) {
+        throw new Exception('Registration failed: could not determine new user id');
     }
 
-    // --- STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - non-critical) ---
+// --- STEP 2: SYNC TO XML (SECONDARY STORAGE - non-critical) ---
     $db_sync_status = 'pending';
     try {
         if (isset($conn) && $conn && !$conn->connect_error) {

@@ -55,7 +55,7 @@ try {
     // 5. Availability Check (Database + XML)
     $isTaken = false;
 
-    // Check Database (Primary)
+    // Check Database first (primary)
     if (isset($conn) && defined('DB_TABLE_USERS')) {
         $stmt = $conn->prepare("SELECT id FROM " . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
         $stmt->bind_param("s", $username);
@@ -65,7 +65,7 @@ try {
         $stmt->close();
     }
 
-    // Check XML (Fallback/Secondary)
+    // Check XML fallback (secondary)
     if (!$isTaken && file_exists(__DIR__ . '/users.xml')) {
         $xml = @simplexml_load_file(__DIR__ . '/users.xml');
         if ($xml) {

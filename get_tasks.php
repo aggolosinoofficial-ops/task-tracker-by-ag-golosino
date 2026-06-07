@@ -9,13 +9,16 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=UTF-8');
 
 // 1. Include necessary files
-require_once 'auth_check.php'; // Ensure your auth logic is included
-require_once 'db.php';         // Includes your getDatabaseConnection function
-require_once 'db_adapter.php'; // Includes the DatabaseAdapter class
+require_once 'AuthService.php';
+require_once 'db.php';
+require_once 'db_adapter.php';
+
 
 try {
     // 2. Validate User Authentication
-    $user_id = checkAuth(); 
+    $auth = new AuthService();
+    $user_id = $auth->checkAuth();
+
     if (!$user_id) {
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Not authenticated']);

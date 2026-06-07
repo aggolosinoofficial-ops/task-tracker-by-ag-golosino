@@ -80,8 +80,13 @@ function handleLogin(e) {
         credentials: 'same-origin',
         body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
-    .then(response => {
+    .then(async (response) => {
         console.log('[Login] Response status:', response.status);
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const txt = await response.text();
+            throw new Error('Server returned non-JSON response: ' + txt.slice(0, 200));
+        }
         return response.json();
     })
     .then(data => {

@@ -8,6 +8,18 @@
  * - Session timeout handling
  * - Secure session creation
  */
+
+// Ensure API endpoints never break JSON parsing in the browser.
+// 1) Avoid accidental output before JSON
+// 2) Convert any PHP warnings/notices into controlled JSON error (logged)
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+// Buffer any stray output (warnings/whitespace)
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
 // 1. Load the database blueprint
 require_once 'db.php';
 
@@ -19,8 +31,7 @@ $conn = getDatabaseConnection();
 include 'auth_check.php';
 include 'validation.php';
 
-header('Content-Type: application/json');
-
+header('Content-Type: application/json; charset=UTF-8');
 
 try {
     // Only POST requests allowed
@@ -141,6 +152,7 @@ try {
 
 } catch (Exception $e) {
     http_response_code(401);
+    ob_end_clean();
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()
@@ -148,11 +160,17 @@ try {
 } catch (Throwable $t) {
     // Convert unexpected PHP errors into JSON so login.js doesn't crash on response.json()
     http_response_code(500);
+    ob_end_clean();
     echo json_encode([
         'success' => false,
-        'error' => 'Server error: ' . $t->getMessage()
+        'error' => 'Server error'
     ]);
 } finally {
+    // If there is buffered stray output, drop it to keep JSON clean.
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     if (isset($stmt) && $stmt) {
         $stmt->close();
     }

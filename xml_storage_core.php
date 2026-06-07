@@ -93,9 +93,15 @@ public function addTask(int $id, int $userId, string $title, string $description
         $tasks = [];
         $count = 0;
         foreach ($xml->task as $t) {
-            if ((int)$t->attributes()->user_id === $userId) {
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($uid === $userId) {
                 if ($count >= $offset && count($tasks) < $limit) {
-                    $tasks[] = ['id' => (int)$t->attributes()->id, 'title' => (string)$t->title, 'description' => (string)$t->description, 'status' => (string)$t->status];
+                    $tasks[] = [
+                        'id' => isset($t->id) ? (int)$t->id : 0,
+                        'title' => (string)$t->title,
+                        'description' => (string)$t->description,
+                        'status' => (string)$t->status
+                    ];
                 }
                 $count++;
             }
@@ -109,9 +115,14 @@ public function addTask(int $id, int $userId, string $title, string $description
         $tasks = [];
         $count = 0;
         foreach ($xml->task as $t) {
-            if ((int)$t->attributes()->user_id === $userId) {
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($uid === $userId) {
                 if ($count >= $offset && count($tasks) < $limit) {
-                    $tasks[] = ['id' => (int)$t->attributes()->id, 'title' => (string)$t->title, 'status' => (string)$t->status];
+                    $tasks[] = [
+                        'id' => isset($t->id) ? (int)$t->id : 0,
+                        'title' => (string)$t->title,
+                        'status' => (string)$t->status
+                    ];
                 }
                 $count++;
             }
@@ -123,7 +134,9 @@ public function addTask(int $id, int $userId, string $title, string $description
         $xml = $this->loadXML($this->tasksFile);
         if (!$xml) return false;
         foreach ($xml->task as $t) {
-            if ((int)$t->attributes()->id === $taskId && (int)$t->attributes()->user_id === $userId) {
+            $id = isset($t->id) ? (int)$t->id : 0;
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($id === $taskId && $uid === $userId) {
                 $t->title = $title;
                 $t->description = $description;
                 $t->status = $status;
@@ -137,7 +150,9 @@ public function addTask(int $id, int $userId, string $title, string $description
         $xml = $this->loadXML($this->tasksFile);
         if (!$xml) return false;
         foreach ($xml->task as $k => $t) {
-            if ((int)$t->attributes()->id === $taskId && (int)$t->attributes()->user_id === $userId) {
+            $id = isset($t->id) ? (int)$t->id : 0;
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($id === $taskId && $uid === $userId) {
                 unset($xml->task[$k]);
                 return $this->saveXML($xml, $this->tasksFile);
             }
@@ -150,7 +165,9 @@ public function addTask(int $id, int $userId, string $title, string $description
         if (!$xml) return false;
         $target = null;
         foreach ($xml->task as $k => $t) {
-            if ((int)$t->attributes()->id === $taskId && (int)$t->attributes()->user_id === $userId) {
+            $id = isset($t->id) ? (int)$t->id : 0;
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($id === $taskId && $uid === $userId) {
                 $target = $t;
                 unset($xml->task[$k]);
                 break;
@@ -158,11 +175,13 @@ public function addTask(int $id, int $userId, string $title, string $description
         }
         if (!$target) return false;
         $this->saveXML($xml, $this->tasksFile);
+
         $arch = $this->loadXML($this->archiveFile) ?? new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><tasks></tasks>');
         $n = $arch->addChild('task');
-        $n->addAttribute('id', (string)$target->attributes()->id);
-        $n->addAttribute('user_id', (string)$target->attributes()->user_id);
+        $n->addChild('id', (string)($target->id ?? ''));
+        $n->addChild('user_id', (string)($target->user_id ?? ''));
         $n->addChild('title', (string)$target->title);
+        $n->addChild('description', (string)($target->description ?? ''));
         $n->addChild('status', (string)$target->status);
         return $this->saveXML($arch, $this->archiveFile);
     }
@@ -172,7 +191,9 @@ public function addTask(int $id, int $userId, string $title, string $description
         if (!$arch) return false;
         $target = null;
         foreach ($arch->task as $k => $t) {
-            if ((int)$t->attributes()->id === $taskId && (int)$t->attributes()->user_id === $userId) {
+            $id = isset($t->id) ? (int)$t->id : 0;
+            $uid = isset($t->user_id) ? (int)$t->user_id : 0;
+            if ($id === $taskId && $uid === $userId) {
                 $target = $t;
                 unset($arch->task[$k]);
                 break;
@@ -180,12 +201,15 @@ public function addTask(int $id, int $userId, string $title, string $description
         }
         if (!$target) return false;
         $this->saveXML($arch, $this->archiveFile);
+
         $xml = $this->loadXML($this->tasksFile) ?? new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><tasks></tasks>');
         $n = $xml->addChild('task');
-        $n->addAttribute('id', (string)$target->attributes()->id);
-        $n->addAttribute('user_id', (string)$target->attributes()->user_id);
+        $n->addChild('id', (string)($target->id ?? ''));
+        $n->addChild('user_id', (string)($target->user_id ?? ''));
         $n->addChild('title', (string)$target->title);
+        $n->addChild('description', (string)($target->description ?? ''));
         $n->addChild('status', (string)$target->status);
+        $n->addChild('created_at', (string)($target->created_at ?? date('Y-m-d\TH:i:s')));
         return $this->saveXML($xml, $this->tasksFile);
     }
 }

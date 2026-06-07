@@ -3,7 +3,14 @@
  * Configuration file for the To-Do App
  * Optimized for 2GB RAM production environments
  */
+// Database configuration
+define('DB_HOST', 'localhost');
+define('DB_USER', 'your_username');
+define('DB_PASS', 'your_password');
+define('DB_NAME', 'your_database_name');
 
+// Optional: You can also use this for your conditional checks
+define('DB_AVAILABLE', true);
 // 1. Session Configuration
 if (!defined('SESSION_NAME')) define('SESSION_NAME', 'todo_app');
 if (!defined('SESSION_COOKIE_DURATION')) define('SESSION_COOKIE_DURATION', 3600);

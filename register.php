@@ -1,19 +1,8 @@
 <?php
 /**
  * User Registration Handler - XML-FIRST ARCHITECTURE
- * 
- * PRIMARY: users.xml (OLTP - Online Transaction Processing)
+ * * PRIMARY: users.xml (OLTP - Online Transaction Processing)
  * SECONDARY: MySQL Database (OLAP - analytical queries)
- * 
- * FLOW:
- * 1. Validate username and password
- * 2. Check uniqueness against XML first, then DB
- * 3. Hash password with bcrypt (cost=10)
- * 4. INSERT TO XML (primary storage)
- * 5. SYNC TO DATABASE (secondary, non-critical)
- * 6. Generate CSRF token
- * 7. Queue failed DB syncs for background retry
- * 8. Return success
  */
 
 include 'config.php';
@@ -44,26 +33,29 @@ try {
         throw new Exception(implode('. ', $validation['errors']));
     }
 
-    // Hash password with bcrypt (cost=10 for 2GB RAM optimization)
+    // Hash password with bcrypt (cost=10)
     $password_hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
     $created_at = date('Y-m-d\TH:i:s');
     $role = 'user';
 
-    // STEP 1: INSERT TO XML (PRIMARY STORAGE - OLTP)
+    // --- STEP 1: INSERT TO XML (PRIMARY STORAGE - OLTP) ---
     $xml_success = false;
     $user_id = 0;
+    $users_xml_path = __DIR__ . '/users.xml';
     
+    if (!file_exists($users_xml_path)) {
+        file_put_contents($users_xml_path, '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL . '<users></users>');
+    }
+
+    // Open file and acquire exclusive lock to prevent race conditions
+    $fp = fopen($users_xml_path, 'c+');
+    if (!$fp || !flock($fp, LOCK_EX)) {
+        throw new Exception('System busy, please try again.');
+    }
+
     try {
-        $users_xml_path = __DIR__ . '/users.xml';
-        
-        if (!file_exists($users_xml_path)) {
-            file_put_contents($users_xml_path, '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL . '<users></users>');
-        }
-        
-        $xml = simplexml_load_file($users_xml_path);
-        if (!$xml) {
-            throw new Exception('Failed to load users.xml');
-        }
+        $xml_content = stream_get_contents($fp);
+        $xml = empty($xml_content) ? new SimpleXMLElement('<users></users>') : new SimpleXMLElement($xml_content);
         
         // Find next ID
         $max_id = 0;
@@ -81,18 +73,21 @@ try {
         $user_element->addChild('role', $role);
         $user_element->addChild('created_at', $created_at);
         
-        $xml->asXML($users_xml_path);
+        // Save back to file
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, $xml->asXML());
         $xml_success = true;
-        
-    } catch (Exception $e) {
-        throw new Exception('Failed to register user in XML storage: ' . $e->getMessage());
+    } finally {
+        flock($fp, LOCK_UN); // Release lock
+        fclose($fp);
     }
 
     if (!$xml_success || $user_id <= 0) {
-        throw new Exception('Failed to create user account');
+        throw new Exception('Failed to create user account in XML storage.');
     }
 
-    // STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - non-critical)
+    // --- STEP 2: SYNC TO DATABASE (SECONDARY STORAGE - non-critical) ---
     $db_sync_status = 'pending';
     try {
         if (isset($conn) && $conn && !$conn->connect_error) {
@@ -112,7 +107,7 @@ try {
         $db_sync_status = 'unavailable';
     }
 
-    // STEP 3: Start session and set user data
+    // --- STEP 3: Start session and set user data ---
     if (session_status() === PHP_SESSION_NONE) {
         session_name(SESSION_NAME);
         session_set_cookie_params([
@@ -131,7 +126,7 @@ try {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(CSRF_TOKEN_LENGTH));
     $_SESSION['csrf_token_time'] = time();
 
-    // Initialize task statistics (optional, don't fail if unavailable)
+    // Initialize task statistics
     try {
         if (isset($conn) && $conn && !$conn->connect_error) {
             updateTaskStats($user_id);
@@ -140,7 +135,7 @@ try {
         error_log("Warning: Failed to initialize task stats: " . $e->getMessage());
     }
 
-    // RESPONSE: Success
+    // --- RESPONSE ---
     echo json_encode([
         'success' => true,
         'message' => 'Registration successful! Please log in.',
@@ -152,7 +147,6 @@ try {
     ]);
 
 } catch (Exception $e) {
-    // RESPONSE: Error
     http_response_code(400);
     echo json_encode([
         'success' => false,
@@ -160,10 +154,10 @@ try {
     ]);
 } finally {
     // Cleanup
-    if (isset($stmt)) {
+    if (isset($stmt) && is_object($stmt)) {
         $stmt->close();
     }
-    if (isset($conn)) {
+    if (isset($conn) && is_object($conn)) {
         $conn->close();
     }
 }

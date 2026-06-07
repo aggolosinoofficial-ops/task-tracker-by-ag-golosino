@@ -561,5 +561,9 @@ function deleteTask(id) {
 }
 
 
-
-document.addEventListener('DOMContentLoaded', initializeTaskListHandlers);
+// Add this as the very last lines of your JavaScript file
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTaskListHandlers();
+    initializeTaskForm(); 
+    loadTasks(1);         
+});

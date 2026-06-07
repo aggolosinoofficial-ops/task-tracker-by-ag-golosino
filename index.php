@@ -1,6 +1,6 @@
 <?php
 /**
- * Add Task Page - To-Do List App
+ * Add Task Page - Task Tracker App
  * Create new tasks and view them 
  * Requires authentication
  */

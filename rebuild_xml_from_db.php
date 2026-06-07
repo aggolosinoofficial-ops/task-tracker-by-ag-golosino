@@ -1,92 +1,99 @@
 <?php
+declare(strict_types=1);
+
 /**
- * rebuild_xml_from_db.php
- *
- * One-time (or repeated) utility endpoint to rebuild XML files
- * from MySQL (DB_NAME = test).
- *
- * Use it after backend fixes or when XML becomes inconsistent.
- *
- * SECURITY NOTE:
- * This script requires authentication (same as the app) and
- * only allows users with role = admin (if role exists).
+ * XMLSyncHandler
+ * Handles the logic to pull data from MySQL and save it to XML
  */
-
-include 'auth_check.php';
-include 'db.php';
-include 'xml_sync_handler.php';
-
-
-header('Content-Type: application/json');
-
-try {
-    $user_id = checkAuth();
-    if (!$user_id) {
-        http_response_code(401);
-        throw new Exception('Please log in');
+class XMLSyncHandler
+{
+    /**
+     * Helper to save a DOMDocument to a file
+     */
+    private function saveXml(DOMDocument $dom, string $filename): bool
+    {
+        $path = __DIR__ . '/' . $filename;
+        return (bool)$dom->save($path);
     }
 
-    // Optional: only allow admins if users table has role
-    // (if not present, we still allow rebuild to avoid breaking dev)
-    $isAdmin = true;
-    try {
-        if (isset($conn) && $conn) {
-            $stmt = $conn->prepare("SELECT role FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE id = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('i', $user_id);
-                $stmt->execute();
-                $res = $stmt->get_result();
-                $row = $res ? $res->fetch_assoc() : null;
-                $role = $row['role'] ?? 'user';
-                $isAdmin = ($role === 'admin');
-                $stmt->close();
+    public function syncAllTasksToXML(mysqli $conn): bool
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $dom->formatOutput = true;
+        $root = $dom->createElement('tasks');
+        $dom->appendChild($root);
+
+        $res = $conn->query("SELECT * FROM tasks");
+        if (!$res) return false;
+        
+        while ($row = $res->fetch_assoc()) {
+            $task = $dom->createElement('task');
+            foreach ($row as $key => $val) {
+                $task->appendChild($dom->createElement($key, htmlspecialchars((string)$val)));
             }
+            $root->appendChild($task);
         }
-    } catch (Exception $e) {
-        // if role check fails, do not block rebuild in dev
-        $isAdmin = true;
+        return $this->saveXml($dom, 'tasks.xml');
     }
 
-    if (!$isAdmin) {
-        http_response_code(403);
-        throw new Exception('Permission denied');
+    public function syncAllUsersToXML(mysqli $conn): bool
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $dom->formatOutput = true;
+        $root = $dom->createElement('users');
+        $dom->appendChild($root);
+
+        $res = $conn->query("SELECT * FROM users");
+        if (!$res) return false;
+
+        while ($row = $res->fetch_assoc()) {
+            $user = $dom->createElement('user');
+            foreach ($row as $key => $val) {
+                $user->appendChild($dom->createElement($key, htmlspecialchars((string)$val)));
+            }
+            $root->appendChild($user);
+        }
+        return $this->saveXml($dom, 'users.xml');
     }
 
-    if (!defined('DB_AVAILABLE') || !DB_AVAILABLE || !isset($conn) || !$conn || $conn->connect_error) {
-        http_response_code(503);
-        throw new Exception('MySQL is not available');
+    public function syncAllArchiveTasksToXML(mysqli $conn): bool
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $dom->formatOutput = true;
+        $root = $dom->createElement('archive');
+        $dom->appendChild($root);
+
+        $res = $conn->query("SELECT * FROM archive_tasks");
+        if (!$res) return false;
+        
+        while ($row = $res->fetch_assoc()) {
+            $item = $dom->createElement('task');
+            foreach ($row as $key => $val) {
+                $item->appendChild($dom->createElement($key, htmlspecialchars((string)$val)));
+            }
+            $root->appendChild($item);
+        }
+        return $this->saveXml($dom, 'archive_tasks.xml');
     }
 
-    $sync = new XMLSyncHandler();
+    public function syncAllDeletedTasksToXML(mysqli $conn): bool
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $dom->formatOutput = true;
+        $root = $dom->createElement('deleted');
+        $dom->appendChild($root);
 
-    // Rebuild tasks
-    $tasksOk = $sync->syncAllTasksToXML($conn);
+        $res = $conn->query("SELECT * FROM deleted_tasks");
+        if (!$res) return false;
 
-    // Rebuild users (optional, but keeps users.xml consistent)
-    $usersOk = $sync->syncAllUsersToXML($conn);
-
-    // Rebuild archive
-    $archiveOk = $sync->syncAllArchiveTasksToXML($conn);
-
-    // Rebuild deleted logs
-    $deletedOk = $sync->syncAllDeletedTasksToXML($conn);
-
-    $result = [
-        'success' => true,
-        'storage' => [
-            'tasks_xml' => $tasksOk ? 'rebuilt ✓' : 'failed',
-            'users_xml' => $usersOk ? 'rebuilt ✓' : 'failed',
-            'archive_tasks_xml' => $archiveOk ? 'rebuilt ✓' : 'failed',
-            'deleted_tasks_xml' => $deletedOk ? 'rebuilt ✓' : 'failed',
-        ]
-    ];
-
-    echo json_encode($result);
-    exit();
-
-} catch (Exception $e) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-    exit();
+        while ($row = $res->fetch_assoc()) {
+            $item = $dom->createElement('task');
+            foreach ($row as $key => $val) {
+                $item->appendChild($dom->createElement($key, htmlspecialchars((string)$val)));
+            }
+            $root->appendChild($item);
+        }
+        return $this->saveXml($dom, 'deleted_tasks.xml');
+    }
 }
-
+?>

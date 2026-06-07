@@ -1,277 +1,106 @@
 <?php
-/**
- * XML Handler for Local Database
- * Provides unified interface to work with both MySQL and XML storage
- * Includes XML validation against XSD schema
- */
 
-class XMLTaskHandler
+class XMLHandler
 {
-    private $xmlFilePath;
-    private $xsdFilePath;
-    private $dom;
+    private DOMDocument $dom;
+    private string $filePath;
 
-    public function __construct($xmlPath = null)
+    /**
+     * Constructor: Initializes the DOMDocument and loads the XML file.
+     */
+    public function __construct(string $filePath = __DIR__ . '/tasks.xml')
     {
-        $this->xmlFilePath = $xmlPath ?? __DIR__ . '/tasks.xml';
-        $this->xsdFilePath = __DIR__ . '/tasks.xsd';
+        $this->filePath = $filePath;
         $this->dom = new DOMDocument('1.0', 'UTF-8');
-        $this->loadXML();
-    }
-
-    /**
-     * Load XML file or create new if doesn't exist
-     */
-    private function loadXML()
-    {
-        if (file_exists($this->xmlFilePath)) {
-            $this->dom->load($this->xmlFilePath);
-        } else {
-            $this->dom->appendChild($this->dom->createElement('tasks'));
-            $this->saveXML();
-        }
-    }
-
-    /**
-     * Save XML file to disk
-     */
-    public function saveXML()
-    {
         $this->dom->formatOutput = true;
-        return $this->dom->save($this->xmlFilePath);
+
+        if (file_exists($this->filePath)) {
+            $this->dom->load($this->filePath);
+        } else {
+            $root = $this->dom->createElement('tasks');
+            $this->dom->appendChild($root);
+            $this->save();
+        }
     }
 
     /**
-     * Validate XML against XSD schema
+     * Atomic Save: Protects against file corruption.
      */
-    public function validateXML()
+    private function save(): bool
     {
-        if (!file_exists($this->xsdFilePath)) {
-            return ['valid' => false, 'error' => 'XSD schema file not found'];
+        $tmpFile = $this->filePath . '.tmp';
+        if ($this->dom->save($tmpFile)) {
+            return rename($tmpFile, $this->filePath);
         }
-
-        libxml_use_internal_errors(true);
-        $valid = $this->dom->schemaValidate($this->xsdFilePath);
-
-        if (!$valid) {
-            $errors = libxml_get_errors();
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[] = trim($error->message);
-            }
-            libxml_clear_errors();
-            return ['valid' => false, 'errors' => $errorMessages];
-        }
-
-        return ['valid' => true];
+        return false;
     }
 
     /**
-     * Add a task to XML
+     * Adds a new task to the XML structure.
      */
-    public function addTask($taskData)
+    public function addTask(array $data): bool
     {
-        // Validate required fields
-        $required = ['id', 'user_id', 'title', 'status', 'created_at'];
-        foreach ($required as $field) {
-            if (!isset($taskData[$field])) {
-                return ['success' => false, 'error' => "Missing required field: $field"];
-            }
+        $task = $this->dom->createElement('task');
+        foreach ($data as $key => $value) {
+            $node = $this->dom->createElement($key, htmlspecialchars((string)$value));
+            $task->appendChild($node);
         }
-
-        $root = $this->dom->documentElement;
-        $taskElement = $this->dom->createElement('task');
-
-        // Create task elements
-        foreach ($taskData as $key => $value) {
-            $element = $this->dom->createElement($key, htmlspecialchars((string) $value, ENT_XML1));
-            $taskElement->appendChild($element);
-        }
-
-        $root->appendChild($taskElement);
-
-        // Validate after adding
-        $validation = $this->validateXML();
-        if (!$validation['valid']) {
-            $root->removeChild($taskElement);
-            return ['success' => false, 'error' => 'Validation failed: ' . implode('; ', $validation['errors'] ?? [])];
-        }
-
-        if ($this->saveXML()) {
-            return ['success' => true, 'message' => 'Task added successfully'];
-        }
-        return ['success' => false, 'error' => 'Failed to save XML'];
+        $this->dom->documentElement->appendChild($task);
+        return $this->save();
     }
 
     /**
-     * Get all tasks from XML
+     * Returns an array of all tasks found in the XML.
      */
-    public function getTasks($userId = null)
+    public function getTasks(): array
     {
         $tasks = [];
-        $taskElements = $this->dom->getElementsByTagName('task');
-
-        foreach ($taskElements as $taskElement) {
-            $task = $this->elementToArray($taskElement);
-
-            // Filter by user_id if provided
-            if ($userId === null || intval($task['user_id']) === intval($userId)) {
-                $tasks[] = $task;
+        foreach ($this->dom->getElementsByTagName('task') as $taskElement) {
+            $task = [];
+            foreach ($taskElement->childNodes as $node) {
+                if ($node->nodeType === XML_ELEMENT_NODE) {
+                    $task[$node->nodeName] = $node->nodeValue;
+                }
             }
+            $tasks[] = $task;
         }
-
         return $tasks;
     }
 
     /**
-     * Get single task by ID
+     * Updates an existing task by searching for its ID.
      */
-    public function getTaskById($taskId)
+    public function updateTask(int $id, array $updates): bool
     {
-        $taskElements = $this->dom->getElementsByTagName('task');
-
-        foreach ($taskElements as $taskElement) {
-            $task = $this->elementToArray($taskElement);
-            if (intval($task['id']) === intval($taskId)) {
-                return $task;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Update task in XML
-     */
-    public function updateTask($taskId, $updates)
-    {
-        $taskElements = $this->dom->getElementsByTagName('task');
-        $found = false;
-
-        foreach ($taskElements as $taskElement) {
-            $idElement = $taskElement->getElementsByTagName('id')->item(0);
-            if ($idElement && intval($idElement->nodeValue) === intval($taskId)) {
-                // Update each field
+        foreach ($this->dom->getElementsByTagName('task') as $taskElement) {
+            $idNode = $taskElement->getElementsByTagName('id')->item(0);
+            if ($idNode && (int)$idNode->nodeValue === $id) {
                 foreach ($updates as $key => $value) {
-                    $elements = $taskElement->getElementsByTagName($key);
-                    if ($elements->length > 0) {
-                        $elements->item(0)->nodeValue = htmlspecialchars((string) $value, ENT_XML1);
-                    } else {
-                        $newElement = $this->dom->createElement($key, htmlspecialchars((string) $value, ENT_XML1));
-                        $taskElement->appendChild($newElement);
+                    $node = $taskElement->getElementsByTagName($key)->item(0);
+                    if ($node) {
+                        $node->nodeValue = htmlspecialchars((string)$value);
                     }
                 }
-                $found = true;
-                break;
+                return $this->save();
             }
         }
-
-        if (!$found) {
-            return ['success' => false, 'error' => 'Task not found'];
-        }
-
-        // Validate after updating
-        $validation = $this->validateXML();
-        if (!$validation['valid']) {
-            return ['success' => false, 'error' => 'Validation failed: ' . implode('; ', $validation['errors'] ?? [])];
-        }
-
-        if ($this->saveXML()) {
-            return ['success' => true, 'message' => 'Task updated successfully'];
-        }
-        return ['success' => false, 'error' => 'Failed to save XML'];
+        return false;
     }
 
     /**
-     * Delete task from XML
+     * Deletes a task by searching for its ID.
      */
-    public function deleteTask($taskId)
+    public function deleteTask(int $id): bool
     {
-        $taskElements = $this->dom->getElementsByTagName('task');
-        $found = false;
-
-        for ($i = $taskElements->length - 1; $i >= 0; $i--) {
-            $taskElement = $taskElements->item($i);
-            $idElement = $taskElement->getElementsByTagName('id')->item(0);
-
-            if ($idElement && intval($idElement->nodeValue) === intval($taskId)) {
+        foreach ($this->dom->getElementsByTagName('task') as $taskElement) {
+            $idNode = $taskElement->getElementsByTagName('id')->item(0);
+            if ($idNode && (int)$idNode->nodeValue === $id) {
                 $taskElement->parentNode->removeChild($taskElement);
-                $found = true;
-                break;
+                return $this->save();
             }
         }
-
-        if (!$found) {
-            return ['success' => false, 'error' => 'Task not found'];
-        }
-
-        if ($this->saveXML()) {
-            return ['success' => true, 'message' => 'Task deleted successfully'];
-        }
-        return ['success' => false, 'error' => 'Failed to save XML'];
+        return false;
     }
+} // End of Class
 
-    /**
-     * Convert DOM element to associative array
-     */
-    private function elementToArray($element)
-    {
-        $array = [];
-
-        foreach ($element->childNodes as $child) {
-            if ($child->nodeType === XML_ELEMENT_NODE) {
-                $array[$child->nodeName] = $child->nodeValue;
-            }
-        }
-
-        return $array;
-    }
-
-    /**
-     * Get next available task ID
-     */
-    public function getNextTaskId()
-    {
-        $maxId = 0;
-        $taskElements = $this->dom->getElementsByTagName('task');
-
-        foreach ($taskElements as $taskElement) {
-            $idElement = $taskElement->getElementsByTagName('id')->item(0);
-            if ($idElement) {
-                $id = intval($idElement->nodeValue);
-                if ($id > $maxId) {
-                    $maxId = $id;
-                }
-            }
-        }
-
-        return $maxId + 1;
-    }
-
-    /**
-     * Export all tasks as JSON (for compatibility with existing code)
-     */
-    public function exportJSON($userId = null)
-    {
-        return json_encode($this->getTasks($userId));
-    }
-
-    /**
-     * Get validation status of XML file
-     */
-    public function getValidationStatus()
-    {
-        return $this->validateXML();
-    }
-}
-
-// Helper function to use XML handler globally
-function getXMLHandler()
-{
-    static $handler = null;
-    if ($handler === null) {
-        $handler = new XMLTaskHandler();
-    }
-    return $handler;
-}
 ?>

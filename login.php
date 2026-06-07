@@ -8,6 +8,10 @@
  * - Session timeout handling
  * - Secure session creation
  */
+// 1. Load the database blueprint
+require_once 'db.php'; 
+// 2. Actually run the connection and assign it to $conn
+$conn = getDatabaseConnection();
 
 include 'auth_check.php';
 include 'validation.php';

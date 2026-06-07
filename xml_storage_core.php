@@ -64,22 +64,28 @@ class XMLStorageCore {
         return null;
     }
 
-    public function addTask(int $userId, string $title, string $description = ''): array {
-        $xml = $this->loadXML($this->tasksFile) ?? new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><tasks></tasks>');
-        $newId = 1;
-        foreach ($xml->task as $task) {
-            $id = (int)$task->attributes()->id;
-            if ($id >= $newId) $newId = $id + 1;
-        }
-        $t = $xml->addChild('task');
-        $t->addAttribute('id', (string)$newId);
-        $t->addAttribute('user_id', (string)$userId);
-        $t->addChild('title', $title);
-        $t->addChild('description', $description);
-        $t->addChild('status', 'pending');
-        $this->saveXML($xml, $this->tasksFile);
-        return ['success' => true, 'id' => $newId];
+   // In xml_storage_core.php
+public function addTask(int $id, int $userId, string $title, string $description = ''): array {
+    $xml = $this->loadXML($this->tasksFile) ?? new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><tasks></tasks>');
+    
+    $newId = 1;
+    foreach ($xml->task as $task) {
+        // Access ID as a child element, not an attribute
+        $id = (int)$task->id; 
+        if ($id >= $newId) $newId = $id + 1;
     }
+    
+    $t = $xml->addChild('task');
+    $t->addChild('id', (string)$newId);          // Use addChild, not addAttribute
+    $t->addChild('user_id', (string)$userId);    // Ensure user_id is consistent
+    $t->addChild('title', $title);
+    $t->addChild('description', $description);
+    $t->addChild('status', 'pending');
+    $t->addChild('created_at', date('Y-m-d\TH:i:s')); // Good practice to include timestamp
+    
+    $this->saveXML($xml, $this->tasksFile);
+    return ['success' => true, 'id' => $newId];
+}
 
     public function getTasksByUser(int $userId, int $limit = 50, int $offset = 0): array {
         $xml = $this->loadXML($this->tasksFile);

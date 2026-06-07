@@ -50,6 +50,9 @@ function handleTaskListClick(event) {
         case 'delete':
             deleteTask(taskId);
             break;
+        case 'restore':
+            restoreTask(taskId);
+            break;
         case 'cancel':
             hideEditForm(taskId);
             break;
@@ -133,7 +136,6 @@ function loadTasks(page = 1) {
             let pagination = null;
             
             if (data.data !== undefined) {
-                // New paginated format from get_tasks.php
                 tasks = data.data || [];
                 pagination = data.pagination;
                 if (pagination) {
@@ -141,31 +143,26 @@ function loadTasks(page = 1) {
                     state.totalPages = pagination.total_pages;
                 }
             } else if (Array.isArray(data)) {
-                // Legacy array format
                 tasks = data;
             } else if (data.success === true) {
-                // Success response with data field
                 tasks = data.tasks || [];
             }
 
             const taskList = document.getElementById('taskList');
             if (!taskList) {
-                console.error('[loadTasks] Missing #taskList container in DOM');
                 if (loading) loading.style.display = 'none';
                 state.isLoading = false;
                 return;
             }
             taskList.innerHTML = '';
-
             
             const fragment = document.createDocumentFragment();
             if (!tasks || tasks.length === 0) {
                 const emptyDiv = document.createElement('div');
-                emptyDiv.style.gridColumn = '1 / -1';
                 emptyDiv.style.textAlign = 'center';
                 emptyDiv.style.padding = '40px';
                 emptyDiv.style.color = '#999';
-                emptyDiv.textContent = 'No tasks found. Add one to get started!';
+                emptyDiv.textContent = 'No tasks found.';
                 fragment.appendChild(emptyDiv);
             } else {
                 tasks.forEach(task => {
@@ -188,7 +185,6 @@ function loadTasks(page = 1) {
         });
 }
 
-// OPTIMIZED: Extract task element creation for better memory management
 function createTaskElement(task) {
     const card = document.createElement('div');
     card.className = task.status === 'completed' ? 'card completed' : 'card';
@@ -197,8 +193,7 @@ function createTaskElement(task) {
     const titleDiv = document.createElement('div');
     const strong = document.createElement('strong');
     strong.className = 'card-title';
-    const categoryIcon = task.category === 'technical' ? '⚙️' : '📝';
-    strong.textContent = categoryIcon + ' ' + task.title;
+    strong.textContent = task.title;
     titleDiv.appendChild(strong);
     
     const descDiv = document.createElement('div');
@@ -207,13 +202,6 @@ function createTaskElement(task) {
     p.textContent = task.description;
     descDiv.appendChild(p);
     
-    const infoDiv = document.createElement('div');
-    const small = document.createElement('small');
-    small.style.color = '#999';
-    small.style.fontSize = '0.85em';
-    small.textContent = 'Created: ' + new Date(task.created_at).toLocaleString();
-    infoDiv.appendChild(small);
-
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'card-actions';
     
@@ -240,14 +228,12 @@ function createTaskElement(task) {
     actionsDiv.appendChild(editBtn);
     actionsDiv.appendChild(deleteBtn);
 
-    // Create edit form
     const editForm = document.createElement('form');
     editForm.id = `editForm${task.id}`;
     editForm.className = 'edit-form';
     editForm.dataset.taskId = task.id;
     editForm.style.display = 'none';
 
-    
     const editInput = document.createElement('input');
     editInput.type = 'text';
     editInput.value = task.title;
@@ -273,29 +259,20 @@ function createTaskElement(task) {
 
     card.appendChild(titleDiv);
     card.appendChild(descDiv);
-    card.appendChild(infoDiv);
     card.appendChild(actionsDiv);
     card.appendChild(editForm);
     
     return card;
 }
 
-// Pagination controls
 function createPaginationControls(pagination, container) {
     const paginationDiv = document.createElement('div');
     paginationDiv.className = 'pagination-controls';
 
     if (pagination.page > 1) {
         const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
         prevBtn.textContent = '← Previous';
         prevBtn.addEventListener('click', () => loadTasks(pagination.page - 1));
-        paginationDiv.appendChild(prevBtn);
-    } else {
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.textContent = '← Previous';
-        prevBtn.disabled = true;
         paginationDiv.appendChild(prevBtn);
     }
 
@@ -305,15 +282,8 @@ function createPaginationControls(pagination, container) {
 
     if (pagination.page < pagination.total_pages) {
         const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
         nextBtn.textContent = 'Next →';
         nextBtn.addEventListener('click', () => loadTasks(pagination.page + 1));
-        paginationDiv.appendChild(nextBtn);
-    } else {
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.textContent = 'Next →';
-        nextBtn.disabled = true;
         paginationDiv.appendChild(nextBtn);
     }
 
@@ -321,169 +291,100 @@ function createPaginationControls(pagination, container) {
 }
 
 function addTask() {
-    console.log('[addTask] Function called');
-    // Get form inputs and trim whitespace
     const title = document.getElementById('title').value.trim();
     const description = document.getElementById('description').value.trim();
     const category = document.getElementById('category').value.trim();
     const csrfToken = document.getElementById('csrf_token')?.value || '';
 
-    console.log('[addTask] Title:', title);
-    console.log('[addTask] Description:', description);
-    console.log('[addTask] Category:', category);
-
-    // Validate that title is provided
     if (!title) {
-        console.log('[addTask] Error: Title is empty');
         showNotification('Task title is required', 'error');
         return;
     }
     
-    // Validate CSRF token
-    if (!csrfToken) {
-        console.error('[addTask] Error: CSRF token not found');
-        showNotification('Security token missing. Please refresh the page.', 'error');
-        return;
-    }
-
-    // Find and disable the submit button to prevent duplicate submissions
     const submitBtn = document.querySelector('#taskForm button[type="submit"]');
-    if (!submitBtn) {
-        console.error('[addTask] Error: Submit button not found');
-        showNotification('Form error: button not found', 'error');
-        return;
-    }
-
-    // Disable button and show loading state
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Adding...';
 
-    console.log('[addTask] Sending request to add_task.php');
-
-    // Send POST request with form data
     fetch('add_task.php', {
         method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        // URL encode the data to prevent special characters from breaking the request
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&category=${encodeURIComponent(category)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
-    .then(response => {
-        // Check if response is valid JSON before parsing
-        console.log('[addTask] Response received, status:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
+    .then(r => r.json())
     .then(result => {
-        console.log('[addTask] Response data:', result);
-        // Re-enable submit button
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Add Task';
-        
-        // Check if server returned success
         if (result.success) {
-            console.log('[addTask] Success! Task ID:', result.task_id);
-            // Show success notification
-            showNotification('✓ Task saved successfully!', 'success');
-            // Clear the form fields for next entry
+            showNotification('✓ Task saved!', 'success');
             document.getElementById('taskForm').reset();
-            console.log('[addTask] Loading tasks to refresh list...');
-            // Reload tasks to show the new one
-            // Only refresh tasks list when the container exists on the current page.
-            // (Do not redirect automatically; user controls navigation.)
-            if (document.getElementById('taskList')) {
-                loadTasks(1); // Reset to page 1 to see new task
-            }
-
+            loadTasks(1);
         } else {
-
-            console.log('[addTask] Error:', result.error);
-            // Show error from server
-            showNotification('✗ Error: ' + (result.error || 'Failed to add task'), 'error');
+            showNotification('✗ Error: ' + result.error, 'error');
         }
     })
-    .catch(error => {
-        console.error('[addTask] Network error:', error);
-        // Re-enable button on error
+    .catch(() => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Add Task';
-        // Show network error notification
-        showNotification('✗ Network error: Could not save task. Check your connection.', 'error');
+        showNotification('✗ Network error.', 'error');
     });
 }
 
-function fetchJsonSafe(url, fetchOptions = {}) {
-    return fetch(url, fetchOptions).then(async (response) => {
-        const contentType = response.headers.get('content-type') || '';
-
-        // If server returns HTML/error page, return it as text so we can display it.
-        if (!contentType.includes('application/json')) {
-            const text = await response.text();
-            throw new Error(`Non-JSON response (${response.status}). ${text.slice(0, 200)}`);
-        }
-
-        return response.json();
+function fetchJsonSafe(url, options = {}) {
+    return fetch(url, options).then(async (r) => {
+        if (!r.ok) throw new Error('Network error');
+        return r.json();
     });
 }
 
 async function getCsrfTokenOrThrow() {
     const existing = document.getElementById('csrf_token')?.value;
     if (existing) return existing;
-
-    const r = await fetch('get_csrf_token.php', {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
+    const r = await fetch('get_csrf_token.php');
     const data = await r.json();
-    if (!data || !data.token) throw new Error('Security token missing');
-    const el = document.getElementById('csrf_token');
-    if (el) el.value = data.token;
     return data.token;
 }
 
 function toggleTask(id, currentStatus) {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    getCsrfTokenOrThrow().then(csrf => {
+        return fetchJsonSafe('toggle_task.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${id}&status=${newStatus}&csrf_token=${csrf}`
+        });
+    }).then(res => {
+        if (res.success) {
+            showNotification('✓ Updated!', 'success');
+            loadTasks();
+        }
+    });
+}
 
+function restoreTask(id) {
     getCsrfTokenOrThrow()
         .then(csrfToken => {
-            return fetchJsonSafe('toggle_task.php', {
+            return fetchJsonSafe('restore_task.php', {
                 method: 'POST',
-                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: `id=${encodeURIComponent(id)}&status=${encodeURIComponent(newStatus)}&csrf_token=${encodeURIComponent(csrfToken)}`
+                body: `id=${encodeURIComponent(id)}&csrf_token=${encodeURIComponent(csrfToken)}`
             });
         })
         .then(result => {
             if (result && result.success) {
-                showNotification('✓ Task marked ' + newStatus + '!', 'success');
+                showNotification('✓ Task restored!', 'success');
                 loadTasks();
             } else {
-                showNotification('✗ Error: ' + ((result && result.error) || 'Failed to update task'), 'error');
+                showNotification('✗ Error: ' + (result.error || 'Failed'), 'error');
             }
         })
         .catch(err => {
-            console.error('toggleTask error:', err);
-            showNotification('✗ Error: ' + err.message, 'error', 6000);
+            showNotification('✗ Error: ' + err.message, 'error');
         });
 }
 
-
 function showEditForm(id) {
     const form = document.getElementById(`editForm${id}`);
-    if (form) {
-        form.style.display = 'block';
-        const titleInput = form.querySelector('input');
-        if (titleInput) {
-            titleInput.focus();
-        }
-    }
+    if (form) form.style.display = 'block';
 }
 
 function hideEditForm(id) {
@@ -494,74 +395,37 @@ function saveEdit(id) {
     const form = document.getElementById(`editForm${id}`);
     const title = form.querySelector('input').value.trim();
     const description = form.querySelector('textarea').value.trim();
-
-    if (!title) {
-        showNotification('Task title is required', 'error');
-        return;
-    }
-
-    getCsrfTokenOrThrow()
-        .then(csrfToken => {
-            return fetchJsonSafe('edit_task.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: `id=${encodeURIComponent(id)}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&csrf_token=${encodeURIComponent(csrfToken)}`
-            });
-        })
-        .then(result => {
-            if (result && result.success) {
-                showNotification('✓ Task updated successfully!', 'success');
-                hideEditForm(id);
-                loadTasks();
-            } else {
-                showNotification('✗ Error: ' + ((result && result.error) || 'Failed to update task'), 'error');
-            }
-        })
-        .catch(err => {
-            console.error('saveEdit error:', err);
-            showNotification('✗ Error: ' + err.message, 'error', 6000);
+    getCsrfTokenOrThrow().then(csrf => {
+        return fetchJsonSafe('edit_task.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${id}&title=${title}&description=${description}&csrf_token=${csrf}`
         });
+    }).then(res => {
+        if (res.success) {
+            showNotification('✓ Updated!', 'success');
+            hideEditForm(id);
+            loadTasks();
+        }
+    });
 }
-
-
 
 function deleteTask(id) {
-    if (!confirm('Archive this task? You can restore it later from the Archive.')) {
-        return;
-    }
-
-    getCsrfTokenOrThrow()
-        .then(csrfToken => {
-            return fetchJsonSafe('delete_task.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: `id=${encodeURIComponent(id)}&csrf_token=${encodeURIComponent(csrfToken)}`
-            });
-        })
-        .then(result => {
-            if (result && result.success) {
-                showNotification('✓ Task archived successfully! Visit Archive to restore.', 'success');
-                loadTasks();
-            } else {
-                showNotification('✗ Error: ' + ((result && result.error) || 'Failed to archive task'), 'error');
-            }
-        })
-        .catch(err => {
-            console.error('deleteTask error:', err);
-            showNotification('✗ Error: ' + err.message, 'error', 6000);
+    if (!confirm('Archive this task?')) return;
+    getCsrfTokenOrThrow().then(csrf => {
+        return fetchJsonSafe('delete_task.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${id}&csrf_token=${csrf}`
         });
+    }).then(res => {
+        if (res.success) {
+            showNotification('✓ Archived!', 'success');
+            loadTasks();
+        }
+    });
 }
 
-
-// Add this as the very last lines of your JavaScript file
 document.addEventListener('DOMContentLoaded', () => {
     initializeTaskListHandlers();
     initializeTaskForm(); 

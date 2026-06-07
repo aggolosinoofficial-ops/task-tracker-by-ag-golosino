@@ -8,7 +8,7 @@ class StorageAdapter {
     private array $config;
 
     /**
-     * @param array $config Configuration settings
+     * @param array $config Configuration settings (must include 'tasks_file')
      */
     public function __construct(array $config = []) {
         $this->config = $config;
@@ -16,8 +16,25 @@ class StorageAdapter {
     }
 
     /**
-     * Security: Verify that the user attempting to access data is the owner.
+     * HELPER: Calculates the next available ID.
      */
+    private function getNextTaskId(): int {
+        $path = $this->config['tasks_file'] ?? (__DIR__ . '/data/tasks.xml');
+        if (!file_exists($path)) return 1;
+
+        $xml = simplexml_load_file($path);
+        if (!$xml || !isset($xml->task)) return 1;
+
+        $maxId = 0;
+        foreach ($xml->task as $task) {
+            $id = (int)$task->id;
+            if ($id > $maxId) {
+                $maxId = $id;
+            }
+        }
+        return $maxId + 1;
+    }
+
     private function verifyOwnership(int $resourceUserId, int $requestingUserId): void {
         if ($resourceUserId !== $requestingUserId) {
             throw new \RuntimeException('Unauthorized access: You do not own this resource.');
@@ -40,10 +57,16 @@ class StorageAdapter {
 
     // --- Task Management ---
 
-    public function addTask(int $userId, string $title, string $description = '', int $requestingUserId = 0): array {
-        $this->verifyOwnership($userId, $requestingUserId);
-        return $this->storage->addTask($userId, $title, $description);
-    }
+   // In StorageAdapter.php
+public function addTask(int $userId, string $title, string $description = '', int $requestingUserId = 0): array {
+    $this->verifyOwnership($userId, $requestingUserId);
+    
+    // Get the integer ID
+    $nextId = $this->getNextTaskId(); 
+    
+    // Pass it as an integer (no (string) cast needed)
+    return $this->storage->addTask($nextId, $userId, $title, $description);
+}
 
     public function getTasksByUser(int $userId, int $page, int $pageSize, int $requestingUserId): array {
         $this->verifyOwnership($userId, $requestingUserId);
@@ -85,24 +108,20 @@ class StorageAdapter {
 
     // --- Insights / Statistics ---
 
-    /**
-     * Calculates task statistics for the user's Insights page.
-     */
     public function getTaskStats(int $userId, int $requestingUserId): array {
         $this->verifyOwnership($userId, $requestingUserId);
         
         $stats = ['total' => 0, 'pending' => 0, 'completed' => 0];
         
-        // Load tasks XML to count statuses
-        $path = (__DIR__ . '/data/tasks.xml');
+        $path = $this->config['tasks_file'] ?? (__DIR__ . '/data/tasks.xml');
+        
         if (file_exists($path)) {
             $xml = simplexml_load_file($path);
             if ($xml) {
                 foreach ($xml->task as $task) {
-                    if ((int)$task->attributes()['user_id'] === $userId) {
+                    if ((int)$task->user_id === $userId) {
                         $stats['total']++;
                         $status = (string)$task->status;
-                        // Increment specific status if tracked
                         if (isset($stats[$status])) {
                             $stats[$status]++;
                         } else {

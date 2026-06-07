@@ -93,3 +93,5 @@ echo "<p>3. Go to <a href='index.php'>Add New Task</a> and add a task</p>";
 echo "<p>4. Go to <a href='tasks.php'>All Tasks</a> to see your tasks</p>";
 echo "</body>
 </html>";
+
+?>

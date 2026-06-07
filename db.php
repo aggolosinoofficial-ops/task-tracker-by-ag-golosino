@@ -10,6 +10,8 @@ declare(strict_types=1);
  */
 
 function getDatabaseConnection(): ?mysqli {
+
+
     // --- CONFIGURATION ---
     $host = "localhost";
     $user = "root";       // Change this if your username is different

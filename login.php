@@ -9,14 +9,18 @@
  * - Secure session creation
  */
 // 1. Load the database blueprint
-require_once 'db.php'; 
+require_once 'db.php';
+
 // 2. Actually run the connection and assign it to $conn
+// NOTE: db may be unavailable (XAMPP not configured, missing tables, etc.).
+// We support XML-first login, so we must NOT fatal if $conn is null.
 $conn = getDatabaseConnection();
 
 include 'auth_check.php';
 include 'validation.php';
 
 header('Content-Type: application/json');
+
 
 try {
     // Only POST requests allowed
@@ -79,23 +83,35 @@ try {
     
     // STEP 2: If not found in XML, check DATABASE (secondary storage)
     if (!$user) {
-        try {
-            $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param("s", $username);
-                if ($stmt->execute()) {
-                    $result = $stmt->get_result();
-                    if ($result && $result->num_rows > 0) {
-                        $user = $result->fetch_assoc();
-                        $source = 'database';
+        // If DB isn't available, silently fall back to XML-only login.
+        if ($conn === null) {
+            // No DB connection; proceed without setting $user.
+        } else {
+            try {
+                // Avoid get_result() (requires mysqlnd). Use bind_result/fetch instead.
+                $stmt = $conn->prepare("SELECT id, username, password_hash FROM " . DB_NAME . "." . DB_TABLE_USERS . " WHERE username = ? LIMIT 1");
+                if ($stmt) {
+                    $stmt->bind_param("s", $username);
+                    if ($stmt->execute()) {
+                        $stmt->bind_result($uid, $uname, $phash);
+                        if ($stmt->fetch()) {
+                            $user = [
+                                'id' => (int)$uid,
+                                'username' => (string)$uname,
+                                'password_hash' => (string)$phash
+                            ];
+                            $source = 'database';
+                        }
                     }
                     $stmt->close();
                 }
+            } catch (Exception $e) {
+                error_log("Database login check error: " . $e->getMessage());
             }
-        } catch (Exception $e) {
-            error_log("Database login check error: " . $e->getMessage());
         }
     }
+
+
 
     // Use generic error message for security (don't reveal if user exists)
     if (!$user) {
@@ -129,12 +145,20 @@ try {
         'success' => false,
         'error' => $e->getMessage()
     ]);
+} catch (Throwable $t) {
+    // Convert unexpected PHP errors into JSON so login.js doesn't crash on response.json()
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Server error: ' . $t->getMessage()
+    ]);
 } finally {
-    if (isset($stmt)) {
+    if (isset($stmt) && $stmt) {
         $stmt->close();
     }
-    if (isset($conn)) {
+    if (isset($conn) && $conn) {
         $conn->close();
     }
 }
 ?>
+

@@ -56,7 +56,7 @@ function checkUsernameAvailability(username) {
         const formData = new FormData();
         formData.append('username', username);
 
-        fetch('check_username.php', {
+        fetch('/api/check_username', {
             method: 'POST',
             body: formData
         })
@@ -129,6 +129,7 @@ function handleRegistrationSubmit(e) {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
+    const csrfToken = document.getElementById('csrf_token').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
 
     // 1. Username validation
@@ -163,8 +164,9 @@ function handleRegistrationSubmit(e) {
     formData.append('username', username);
     formData.append('password', password);
     formData.append('confirm_password', confirmPassword);
+    formData.append('csrf_token', csrfToken);
 
-    fetch('register.php', {
+    fetch('/register', {
         method: 'POST',
         body: formData
     })
@@ -172,7 +174,7 @@ function handleRegistrationSubmit(e) {
     .then(data => {
         if (data.success) {
             showMessage('Registration successful! Redirecting...', 'success');
-            setTimeout(() => { window.location.href = 'login.html'; }, 2000);
+            setTimeout(() => { window.location.href = '/login'; }, 2000);
         } else {
             showMessage(data.error || 'Registration failed.', 'error');
             submitBtn.disabled = false;

@@ -5,31 +5,7 @@
 
 // Get CSRF token from server on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[Login] Page loaded, fetching CSRF token...');
-    
-    // Fetch CSRF token
-    fetch('get_csrf_token.php', {
-        method: 'GET',
-        credentials: 'include'  // Include cookies for same-site requests
-    })
-    .then(response => {
-        console.log('[CSRF] Response status:', response.status);
-        return response.json();
-    })
-    .then(data => {
-        console.log('[CSRF] Token received:', data.token ? 'Yes' : 'No');
-        if (data.token) {
-            document.getElementById('csrf_token').value = data.token;
-            console.log('[CSRF] Token set successfully');
-        } else {
-            console.error('[CSRF] No token in response:', data);
-            showMessage('Security token error. Please refresh the page.', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('[CSRF] Fetch error:', error);
-        showMessage('Failed to load security token. Please refresh the page.', 'error');
-    });
+    console.log('[Login] Page loaded');
 
     // Setup login form handler
     const loginForm = document.getElementById('loginForm');
@@ -72,7 +48,7 @@ function handleLogin(e) {
     console.log('[Login] Sending login request for user:', username);
 
     // Send login request
-    fetch('login.php', {
+    fetch('/login', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -80,14 +56,20 @@ function handleLogin(e) {
         credentials: 'include',  // Include cookies to maintain session across requests
         body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
-    .then(async (response) => {
+    .then(async response => {
+        const text = await response.text();
         console.log('[Login] Response status:', response.status);
-        const ct = response.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) {
-            const txt = await response.text();
-            throw new Error('Server returned non-JSON response: ' + txt.slice(0, 200));
+        
+        if (!text) {
+            throw new Error('Empty response from server. Check application logs.');
         }
-        return response.json();
+
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('[Login] Invalid JSON received:', text);
+            throw new Error('Server error: Invalid response format.');
+        }
     })
     .then(data => {
         console.log('[Login] Response data:', data);
@@ -96,7 +78,7 @@ function handleLogin(e) {
             console.log('[Login] Login successful!');
             showMessage('✓ Login successful! Redirecting...', 'success');
             setTimeout(() => {
-                window.location.href = 'index.php';
+                window.location.href = '/';
             }, 1000);
         } else {
             console.error('[Login] Error:', data.error);

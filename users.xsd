@@ -1,37 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
-
-    <xs:element name="users">
-        <xs:complexType>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="users">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="user" maxOccurs="unbounded" minOccurs="0">
+          <xs:complexType>
             <xs:sequence>
-                <xs:element name="user" type="userType" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element name="username" type="xs:string"/>
+              <xs:element name="password_hash" type="xs:string"/>
+              <xs:element name="role" type="xs:string"/>
+              <xs:element name="created_at" type="xs:dateTime"/>
             </xs:sequence>
-        </xs:complexType>
-    </xs:element>
-
-    <xs:complexType name="userType">
-        <xs:sequence>
-            <xs:element name="id" type="xs:positiveInteger"/>
-            <xs:element name="username" type="usernameType"/>
-            <xs:element name="password_hash" type="xs:string"/>
-            <xs:element name="role" type="roleType"/>
-            <xs:element name="created_at" type="xs:dateTime"/>
-        </xs:sequence>
+            <xs:attribute name="id" type="xs:integer" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
     </xs:complexType>
-
-    <xs:simpleType name="usernameType">
-        <xs:restriction base="xs:string">
-            <xs:minLength value="2"/>
-            <xs:maxLength value="30"/>
-        </xs:restriction>
-    </xs:simpleType>
-
-    <xs:simpleType name="roleType">
-        <xs:restriction base="xs:string">
-            <xs:enumeration value="user"/>
-            <xs:enumeration value="admin"/>
-            <xs:enumeration value="moderator"/>
-        </xs:restriction>
-    </xs:simpleType>
-
+  </xs:element>
 </xs:schema>

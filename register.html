@@ -269,7 +269,7 @@
         <div id="message"></div>
         
         <form id="registerForm">
-            <input type="hidden" id="csrf_token" name="csrf_token" value="">
+            <input type="hidden" id="csrf_token" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="form-group">
                 <label for="username">Username</label>
@@ -342,10 +342,10 @@
         </form>
 
         <div class="link-section">
-            Already have an account? <a href="login.html">Sign In</a>
+            Already have an account? <a href="{{ url_for('login') }}">Sign In</a>
         </div>
     </div>
 
-    <script src="register.js"></script>
+    <script src="{{ url_for('static', filename='register.js') }}"></script>
 </body>
 </html>

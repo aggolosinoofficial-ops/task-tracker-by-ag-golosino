@@ -1,0 +1,90 @@
+from lxml import etree
+import copy
+
+class ArchiveService:
+    def __init__(self, xml_service):
+        self.xml = xml_service
+        self.tasks_file = "tasks"
+        self.archive_file = "archived_tasks"
+
+    def get_archived_task(self, task_id, user_id=None):
+        xpath = "//task[@id=$tid]"
+        if user_id:
+            xpath += "[created_by=$uid]"
+            
+        nodes = self.xml.find_all(self.archive_file, xpath, tid=task_id, uid=str(user_id))
+        return self._element_to_dict(nodes[0]) if nodes else None
+
+    def archive_task(self, task_id, user_id, is_admin=False):
+        """
+        Moves a task from tasks.xml to archived_tasks.xml.
+        Verifies ownership or admin status before moving.
+        """
+        tree = self.xml.get_element_tree(self.tasks_file)
+        root = tree.getroot()
+        
+        # Find the specific task using XPath
+        task_nodes = root.xpath("//task[@id=$tid]", tid=task_id)
+        if not task_nodes:
+            return False, "Task not found."
+        
+        task_node = task_nodes[0]
+        
+        # Permission check: User must be creator or the assigned user
+        created_by = task_node.findtext('created_by')
+        assigned_to = task_node.findtext('assigned_to')
+        if not is_admin and str(user_id) not in [created_by, assigned_to]:
+            return False, "Permission denied."
+
+        # Load/Initialize the archive tree
+        archive_tree = self.xml.get_element_tree(self.archive_file)
+        archive_root = archive_tree.getroot()
+        
+        # Use deepcopy to preserve all data including attributes
+        archived_node = copy.deepcopy(task_node)
+        
+        archive_root.append(archived_node)
+        root.remove(task_node)
+        
+        # Save both files; save_safely performs XSD validation before writing
+        success, msg = self.xml.save_safely(self.tasks_file, tree)
+        if not success:
+            return False, msg
+            
+        return self.xml.save_safely(self.archive_file, archive_tree)
+
+    def restore_task(self, task_id, user_id, is_admin=False):
+        """Moves a task from archived_tasks.xml back to tasks.xml."""
+        archive_tree = self.xml.get_element_tree(self.archive_file)
+        archive_root = archive_tree.getroot()
+        
+        task_nodes = archive_root.xpath("//task[@id=$tid]", tid=task_id)
+        if not task_nodes:
+            return False, "Archived task not found."
+            
+        task_node = task_nodes[0]
+        
+        # Ownership check (typically based on original creator)
+        if not is_admin and task_node.findtext('created_by') != str(user_id):
+            return False, "Permission denied."
+            
+        tasks_tree = self.xml.get_element_tree(self.tasks_file)
+        tasks_root = tasks_tree.getroot()
+        
+        # Use deepcopy to ensure consistency
+        restored_node = copy.deepcopy(task_node)
+        
+        tasks_root.append(restored_node)
+        archive_root.remove(task_node)
+        
+        success, msg = self.xml.save_safely(self.archive_file, archive_tree)
+        if not success:
+            return False, msg
+            
+        return self.xml.save_safely(self.tasks_file, tasks_tree)
+
+    def _element_to_dict(self, el):
+        data = {'id': el.get('id')}
+        for child in el:
+            data[child.tag] = child.text
+        return data

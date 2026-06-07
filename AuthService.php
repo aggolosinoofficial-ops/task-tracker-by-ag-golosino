@@ -1,13 +1,8 @@
 <?php
 declare(strict_types=1);
 
-/**
- * AuthService
- * Instance-based wrapper around authentication + CSRF + rate limiting helpers.
- */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/bootstrap.php';
 
 class AuthService
 {
@@ -27,7 +22,7 @@ class AuthService
         ini_set('session.use_only_cookies', 1);
         ini_set('session.cookie_httponly', defined('SESSION_HTTPONLY') ? (int)SESSION_HTTPONLY : 1);
         ini_set('session.cookie_secure', defined('SESSION_SECURE') ? (int)SESSION_SECURE : 0);
-        ini_set('session.cookie_samesite', 'Strict');
+        ini_set('session.cookie_samesite', defined('SESSION_SAMESITE') ? SESSION_SAMESITE : 'Lax');
 
         session_start();
         $this->sessionEnsured = true;

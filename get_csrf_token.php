@@ -7,7 +7,7 @@ declare(strict_types=1);
  * Works on login page (no auth required) and authenticated pages.
  */
 
-include 'config.php';
+require_once 'bootstrap.php';
 
 // Start session securely
 if (session_status() === PHP_SESSION_NONE) {
@@ -17,7 +17,7 @@ if (session_status() === PHP_SESSION_NONE) {
         'path'     => '/',
         'secure'   => SESSION_SECURE,
         'httponly' => SESSION_HTTPONLY,
-        'samesite' => 'Strict'
+        'samesite' => defined('SESSION_SAMESITE') ? SESSION_SAMESITE : 'Lax'
     ]);
     session_start();
 }

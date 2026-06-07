@@ -1,0 +1,60 @@
+1. Duplicate Function Declaration (BLOCKING)
+File: db.php
+
+The getDatabaseConnection() function is defined twice in the same file
+Line 14 and line 45+ both contain the same function
+Fix: Remove the duplicate function definition, keep only one
+2. Duplicate Constant Definitions (BLOCKING)
+Files: config.php (lines 7-10, 13)
+
+Constants are defined unconditionally: DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_AVAILABLE
+Then redefined again with if (!defined(...)) checks (lines 21-28)
+Fix: Remove the unconditional definitions at lines 7-13; keep only the if (!defined()) versions
+3. Database Name Mismatch (CRITICAL)
+Inconsistency across 3 files:
+
+config.php:8: DB_NAME = 'task_tracker'
+db.php:25: $db = "test" (hardcoded)
+test_connection.php:34: Uses 'test' database
+Fix: Unify to one database name (recommend task_tracker from config):
+
+Update db.php to use task_tracker
+Update test_connection.php to use task_tracker
+4. Fallback XML Storage Not Initialized
+Missing: Data directory structure
+
+Files reference tasks.xml, users.xml, but no /data directory exists
+The XML fallback won't work as a backup when MySQL is unavailable
+Fix: Create /data directory with XML schema files or initialize from database
+5. Inconsistent Include Patterns (CODE QUALITY)
+Issue: Multiple files include both config.php and db.php separately
+
+add_task.php: Includes auth_check.php which includes both
+login.php: Also includes both
+AuthService.php: Includes both
+This creates multiple inclusion risks. Fix: Create a single unified bootstrap file that handles all initialization once.
+
+User tries to login → Browser sends fetch to login.php
+PHP encounters redeclare error before executing any application code
+Web server returns HTTP 200 with HTML error instead of JSON
+Browser fetch handler expects application/json but gets HTML
+JSON.parse() fails → "Failed to fetch" or "SyntaxError"
+login.js catches this as network error (see login.js:93
+User sees: "Network error: Could not reach server. Is XAMPP running?"IX #2: Remove Duplicate Constant Definitions in config.php
+Delete lines 7-13 (the unconditional definitionsFIX #3: Unify Database Name
+Update these files to use task_tracker consistently:
+
+File: db.php (line 25)And change all references to test. to task_tracker. (lines 36, 44, 47, 50, etc.)
+
+FIX #4: Create XML Data Directory
+Create the missing directory:
+
+Then create placeholder XML files or ensure your XML initialization code creates them on first use.
+
+FIX #5: Consolidate Includes (Optional but Recommended)
+Create a new file: bootstrap.php
+
+Then replace all the scattered includes with:
+
+Testing After Fixes
+Run this to verify syntax:

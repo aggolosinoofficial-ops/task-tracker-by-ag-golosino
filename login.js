@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fetch CSRF token
     fetch('get_csrf_token.php', {
         method: 'GET',
-        credentials: 'same-origin'
+        credentials: 'include'  // Include cookies for same-site requests
     })
     .then(response => {
         console.log('[CSRF] Response status:', response.status);
@@ -77,7 +77,7 @@ function handleLogin(e) {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        credentials: 'same-origin',
+        credentials: 'include',  // Include cookies to maintain session across requests
         body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
     .then(async (response) => {

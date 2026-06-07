@@ -16,7 +16,7 @@ function getDatabaseConnection(): ?mysqli {
     $host = "localhost";
     $user = "root";       // Change this if your username is different
     $pass = "";           // Change this if you have a password set
-    $db   = "test";       // The database name
+    $db   = "task_tracker";       // The database name
     // ---------------------
 
     // Attempt to connect. The '@' suppresses direct error output so we can handle it.

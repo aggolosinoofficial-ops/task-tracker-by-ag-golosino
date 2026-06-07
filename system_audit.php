@@ -11,6 +11,7 @@ include 'db.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 $audit = [];
+$conn = getDatabaseConnection();
 
 // ============ 1. FILE EXISTENCE CHECK ============
 $requiredFiles = [
@@ -62,7 +63,7 @@ foreach ($requiredTables as $table) {
     $result = $conn->query("SHOW TABLES LIKE '$table'");
     if ($result && $result->num_rows > 0) {
         // Get table info
-        $colsResult = $conn->query("SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='$table' AND TABLE_SCHEMA='test'");
+        $colsResult = $conn->query("SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='$table' AND TABLE_SCHEMA='task_tracker'");
         $columns = [];
         if ($colsResult) {
             while ($row = $colsResult->fetch_assoc()) {
@@ -71,7 +72,7 @@ foreach ($requiredTables as $table) {
         }
         
         // Get row count
-        $countResult = $conn->query("SELECT COUNT(*) as count FROM test.$table");
+        $countResult = $conn->query("SELECT COUNT(*) as count FROM task_tracker.$table");
         $count = $countResult ? $countResult->fetch_assoc()['count'] : 0;
         
         $audit['database']['tables'][] = [
@@ -97,13 +98,13 @@ $audit['integrity'] = [
 ];
 
 // Count users
-$userResult = $conn->query("SELECT COUNT(*) as count FROM test.users");
+$userResult = $conn->query("SELECT COUNT(*) as count FROM task_tracker.users");
 if ($userResult) {
     $audit['integrity']['users']['total'] = $userResult->fetch_assoc()['count'];
 }
 
 // Count tasks
-$taskResult = $conn->query("SELECT COUNT(*) as count FROM test.tasks");
+$taskResult = $conn->query("SELECT COUNT(*) as count FROM task_tracker.tasks");
 if ($taskResult) {
     $audit['integrity']['tasks']['total'] = $taskResult->fetch_assoc()['count'];
 }

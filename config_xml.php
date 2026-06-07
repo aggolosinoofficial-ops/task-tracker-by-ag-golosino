@@ -18,7 +18,7 @@ define('USE_DUAL_STORAGE', false);
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_PASS', getenv('DB_PASS') ?: ''); // WARNING: Never commit real passwords
-define('DB_NAME', getenv('DB_NAME') ?: 'test');
+define('DB_NAME', getenv('DB_NAME') ?: 'task_tracker');
 
 // ============================================
 // XML CONFIGURATION
@@ -42,21 +42,13 @@ function getDatabase($conn = null): object
 {
     require_once 'db_adapter.php';
 
-    // Check if we need to return a special Dual-Storage adapter
-    if (defined('USE_DUAL_STORAGE') && USE_DUAL_STORAGE) {
-        // You would implement a class that writes to both
-        return new DatabaseAdapter('dual', $conn);
+    // Return MySQL adapter with connection
+    if ($conn instanceof mysqli) {
+        return new DatabaseAdapter($conn);
     }
-
-    if (DB_BACKEND === 'mysql') {
-        return new DatabaseAdapter('mysql', $conn);
-    } 
     
-    if (DB_BACKEND === 'xml') {
-        return new DatabaseAdapter('xml');
-    }
-
-    throw new Exception('Invalid DB_BACKEND configuration: ' . DB_BACKEND);
+    // Fallback to XML when MySQL unavailable
+    return new DatabaseAdapter(null);
 }
 
 /**
@@ -65,7 +57,7 @@ function getDatabase($conn = null): object
 function getXMLHandler(): object
 {
     require_once 'xml_handler.php';
-    return new XMLTaskHandler(XML_FILE_PATH);
+    return new XMLHandler();
 }
 
 /**

@@ -13,8 +13,7 @@
  * - XML and DB query support
  */
 
-include 'config.php';
-include 'db.php';
+require_once __DIR__ . '/bootstrap.php';
 
 /**
  * Validate username format and uniqueness

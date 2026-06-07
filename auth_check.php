@@ -4,8 +4,7 @@
  * Full Implementation with Strict Type Hinting
  */
 
-require_once 'config.php';
-require_once 'db.php';
+require_once 'bootstrap.php';
 
 // Session is intentionally NOT started at include-time.
 // Starting sessions and/or sending headers before an API endpoint sets its

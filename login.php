@@ -20,19 +20,33 @@ if (ob_get_level() === 0) {
     ob_start();
 }
 
-// 1. Load the database blueprint
-require_once 'db.php';
+// Load unified bootstrap with config, db, and AuthService
+require_once 'bootstrap.php';
 
-// 2. Actually run the connection and assign it to $conn
+// Actually run the connection and assign it to $conn
 // NOTE: db may be unavailable (XAMPP not configured, missing tables, etc.).
 // We support XML-first login, so we must NOT fatal if $conn is null.
 $conn = getDatabaseConnection();
 
-require_once 'AuthService.php';
 include 'validation.php';
 
-
 header('Content-Type: application/json; charset=UTF-8');
+
+// Set global error handler to catch any PHP warnings/errors
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    error_log("PHP Error [$errno]: $errstr in $errfile on line $errline");
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error']);
+    exit;
+});
+
+// Set global exception handler for uncaught exceptions
+set_exception_handler(function($exception) {
+    error_log("Uncaught Exception: " . $exception->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error: ' . $exception->getMessage()]);
+    exit;
+});
 
 try {
     // Only POST requests allowed

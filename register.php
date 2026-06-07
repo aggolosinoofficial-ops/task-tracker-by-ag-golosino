@@ -5,8 +5,7 @@
  * SECONDARY: MySQL Database (OLAP - analytical queries)
  */
 
-include 'config.php';
-include 'db.php';
+require_once 'bootstrap.php';
 include 'validation.php';
 
 header('Content-Type: application/json');

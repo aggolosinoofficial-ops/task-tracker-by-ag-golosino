@@ -74,7 +74,6 @@ class XMLSyncHandler {
         if (!file_exists($tasksFile)) return false;
 
         $xml = simplexml_load_file($tasksFile);
-
         if (!$xml) return false;
 
         $updated = 0;

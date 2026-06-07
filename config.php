@@ -3,20 +3,13 @@
  * Configuration file for the To-Do App
  * Optimized for 2GB RAM production environments
  */
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'task_tracker');
-
-// Optional: You can also use this for your conditional checks
-define('DB_AVAILABLE', true);
 // 1. Session Configuration
 if (!defined('SESSION_NAME')) define('SESSION_NAME', 'todo_app');
 if (!defined('SESSION_COOKIE_DURATION')) define('SESSION_COOKIE_DURATION', 3600);
 if (!defined('SESSION_SECURE')) define('SESSION_SECURE', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on');
 if (!defined('SESSION_HTTPONLY')) define('SESSION_HTTPONLY', true);
 if (!defined('SESSION_TIMEOUT')) define('SESSION_TIMEOUT', 3600);
+if (!defined('SESSION_SAMESITE')) define('SESSION_SAMESITE', 'Lax'); // 'Lax' for localhost, 'Strict' for production
 
 // 2. Database configuration
 if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: 'localhost');

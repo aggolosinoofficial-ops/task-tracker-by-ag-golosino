@@ -31,10 +31,10 @@ try {
 
         // Test 2: Database Selection
         echo "<h2>Test 2: Database & Tables</h2>";
-        if (!$conn->select_db('test')) {
-            echo "<p class='error'>✗ Database 'test' not found</p>";
+        if (!$conn->select_db('task_tracker')) {
+            echo "<p class='error'>✗ Database 'task_tracker' not found</p>";
         } else {
-            echo "<p class='success'>✓ Database 'test' selected</p>";
+            echo "<p class='success'>✓ Database 'task_tracker' selected</p>";
 
             // Check tables
             $tables = ['users', 'tasks', 'archive_tasks', 'task_stats'];
@@ -50,7 +50,7 @@ try {
 
         // Test 3: Admin User
         echo "<h2>Test 3: Admin User</h2>";
-        $result = $conn->query("SELECT id, username FROM test.users WHERE username = 'admin123'");
+        $result = $conn->query("SELECT id, username FROM task_tracker.users WHERE username = 'admin123'");
         if ($result && $result->num_rows > 0) {
             $user = $result->fetch_assoc();
             echo "<p class='success'>✓ Admin user exists (ID: " . $user['id'] . ")</p>";

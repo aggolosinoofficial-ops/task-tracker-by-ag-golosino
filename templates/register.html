@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Task Tracker</title>
-    <style>
+{% extends "base.html" %}
+{% block content %}
+<style>
         * {
             margin: 0;
             padding: 0;
@@ -260,15 +256,22 @@
         .link-section a:hover {
             color: #764ba2;
         }
-    </style>
-</head>
-<body>
+</style>
+
     <div class="container">
         <h1>Create Account</h1>
         <p class="subtitle">Join Task Tracker Today</p>
-        <div id="message"></div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div id="message" class="{{ category }}" style="display: block;">{{ message }}</div>
+                {% endfor %}
+            {% else %}
+                <div id="message"></div>
+            {% endif %}
+        {% endwith %}
         
-        <form id="registerForm">
+        <form id="registerForm" method="POST">
             <input type="hidden" id="csrf_token" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="form-group">
@@ -346,6 +349,5 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='register.js') }}"></script>
-</body>
-</html>
+<script src="{{ url_for('static', filename='register.js') }}"></script>
+{% endblock %}

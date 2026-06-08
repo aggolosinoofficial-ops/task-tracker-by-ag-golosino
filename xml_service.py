@@ -12,8 +12,10 @@ except ImportError:
 
 class XMLService:
     def __init__(self):
-        self.data_dir = 'data'
-        self.schema_dir = 'schema'
+        # Use absolute paths to ensure the app finds data regardless of where it's launched
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.data_dir = os.path.join(self.base_dir, 'data')
+        self.schema_dir = os.path.join(self.base_dir, 'schema')
         self._cache = {}          # Phase 3: Memory Caching
         self._last_load = {}      # Track file mtimes for cache invalidation
         self._schemas = {}        # Pre-compiled schemas
@@ -59,12 +61,14 @@ class XMLService:
         self._last_load[filename] = mtime
         return tree
 
-    def _log_sync_requirement(self, filename):
+    def _log_sync_requirement(self, filename, action="UPDATE", entity_id=None):
         """Logs a modification requirement to the sync queue for Phase 4 MySQL reconciliation."""
         queue_path = os.path.join(self.data_dir, 'sync_queue.json')
         entry = {
             'filename': filename,
             'timestamp': time.time(),
+            'action': action,
+            'id': entity_id,
             'status': 'pending'
         }
         
@@ -106,15 +110,15 @@ class XMLService:
             return portalocker.Lock(path, timeout=5)
         return None
 
-    def save_safely(self, filename, tree):
+    def save_safely(self, filename, tree, entity_id=None):
         xml_path, xsd_path = self._get_paths(filename)
         # Use portalocker if available, otherwise use a nullcontext as a no-op
         lock = self._lock_file(xml_path) or nullcontext()
         
         with lock:
-            return self._perform_save(filename, tree, xml_path)
+            return self._perform_save(filename, tree, xml_path, entity_id)
 
-    def _perform_save(self, filename, tree, xml_path):
+    def _perform_save(self, filename, tree, xml_path, entity_id=None):
         # Pre-generate XML string to validate before writing to disk
         xml_string = etree.tostring(tree, encoding='UTF-8', xml_declaration=True, pretty_print=True)
         
@@ -140,7 +144,7 @@ class XMLService:
         
         self._cache[filename] = tree
         self._last_load[filename] = os.path.getmtime(xml_path)
-        self._log_sync_requirement(filename)
+        self._log_sync_requirement(filename, "UPDATE", entity_id)
         return True, "Success"
 
     def get_next_id(self, filename, tag_name):

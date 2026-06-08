@@ -17,10 +17,28 @@
         transition: transform 0.3s ease;
     }
     .stat-card:hover { transform: translateY(-5px); box-shadow: 0 5px 20px rgba(122, 179, 212, 0.2); }
-    .stat-card h3 { color: #666; font-size: 0.95em; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-    .stat-card .stat-value { font-size: 2.5em; font-weight: bold; color: #667eea; margin: 10px 0; }
+    .stat-card h3 { 
+        color: #666; 
+        font-size: 0.95em; 
+        margin-bottom: 10px; 
+        text-transform: uppercase; 
+        letter-spacing: 1px; 
+    }
+    .stat-card .stat-value { 
+        font-size: 2.5em; 
+        font-weight: bold; 
+        color: #667eea; 
+        margin: 10px 0; 
+    }
     .stat-card .stat-unit { color: #999; font-size: 0.85em; }
-    .productivity-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: 600; margin-top: 10px; font-size: 0.85em; }
+    .productivity-badge { 
+        display: inline-block; 
+        padding: 8px 16px; 
+        border-radius: 20px; 
+        font-weight: 600; 
+        margin-top: 10px; 
+        font-size: 0.85em; 
+    }
     .productivity-badge.excellent { background-color: #d4edda; color: #155724; }
     .productivity-badge.good { background-color: #cfe2ff; color: #084298; }
     .productivity-badge.moderate { background-color: #fff3cd; color: #664d03; }
@@ -85,7 +103,7 @@
     <div class="row">
         <div class="col-md-6">
             <div class="charts-container">
-                <div class="chart-title">📈 Status Distribution</div>
+                <div class="chart-title">📈 Task Completion Rate</div>
                 <div class="chart-wrapper">
                     <canvas id="statusChart"></canvas>
                 </div>
@@ -158,12 +176,12 @@
     }
 
     function renderCharts(data) {
-        // 1. Status Chart
+        // 1. Status Chart (Visualizes Completion Rate)
         initChart('statusChart', 'doughnut', {
-            labels: ['Pending', 'Completed'],
+            labels: ['Incomplete', 'Completed'],
             datasets: [{
                 data: [data.pending, data.completed],
-                backgroundColor: ['#ffc107', '#28a745'],
+                backgroundColor: ['#f8d7da', '#28a745'],
                 borderWidth: 0
             }]
         }, { cutout: '70%' });

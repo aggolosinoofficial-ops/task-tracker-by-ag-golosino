@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="tasks">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="task" maxOccurs="unbounded" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="title" type="xs:string"/>
+              <xs:element name="description" type="xs:string" minOccurs="0"/>
+              <xs:element name="priority">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:enumeration value="Low"/>
+                    <xs:enumeration value="Medium"/>
+                    <xs:enumeration value="High"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="status">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:enumeration value="pending"/>
+                    <xs:enumeration value="in_progress"/>
+                    <xs:enumeration value="completed"/>
+                    <xs:enumeration value="cancelled"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="created_by" type="xs:string"/>
+              <xs:element name="assigned_to" type="xs:string"/>
+              <xs:element name="created_date" type="xs:dateTime"/>
+              <xs:element name="due_date">
+                <xs:simpleType>
+                  <xs:union memberTypes="xs:dateTime xs:date">
+                    <xs:simpleType>
+                      <xs:restriction base="xs:string">
+                        <xs:length value="0"/>
+                      </xs:restriction>
+                    </xs:simpleType>
+                  </xs:union>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="last_updated" type="xs:dateTime"/>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

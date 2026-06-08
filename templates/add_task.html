@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white py-3">
+                    <h4 class="mb-0 text-primary">Add New Task</h4>
+                </div>
+                <div class="card-body p-4">
+                    <!-- Container for notifications from script.js -->
+                    <div id="notificationContainer"></div>
+                    
+                    <form id="taskForm">
+                        <input type="hidden" id="csrf_token" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="mb-3">
+                            <label for="title" class="form-label fw-bold">Task Title</label>
+                            <input type="text" class="form-control" id="title" name="title" required placeholder="What needs to be done?">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label fw-bold">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" placeholder="Add some context..."></textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="category" class="form-label fw-bold">Priority</label>
+                                <select class="form-select" id="category" name="priority">
+                                    <option value="Low">Low</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="due_date" class="form-label fw-bold">Due Date</label>
+                                <input type="date" class="form-control" id="due_date" name="due_date">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{{ url_for('tasks') }}" class="btn btn-light border">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4">Create Task</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}

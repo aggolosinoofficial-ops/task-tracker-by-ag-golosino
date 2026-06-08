@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from auth_service import AuthService
@@ -34,11 +34,16 @@ def load_user(user_id):
 @login_required
 def index():
     stats = task_service.get_dashboard_stats(current_user.id)
-    recent_activity = activity_service.get_recent_logs(limit=5)
+    recent_activity = activity_service.get_recent_logs(limit=5) or []
     return render_template('dashboard.html', stats=stats, activities=recent_activity)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
+        return redirect(url_for('index'))
+        
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -46,25 +51,43 @@ def login():
         if user:
             login_user(user)
             activity_service.log_activity(user.username, "User logged in")
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Invalid username or password'})
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True})
+            return redirect(url_for('index'))
+            
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Invalid username or password'})
+        flash('Invalid username or password', 'error')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         confirm = request.form.get('confirm_password')
         
         if password != confirm:
-            return jsonify({'success': False, 'error': 'Passwords do not match'})
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Passwords do not match'})
+            flash('Passwords do not match', 'error')
+            return redirect(url_for('register'))
         
         success, msg = auth_service.create_user(username, password)
         if success:
             activity_service.log_activity(username, "New user registered")
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': msg})
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True})
+            flash('Registration successful! Please sign in.', 'success')
+            return redirect(url_for('login'))
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': msg})
+        flash(msg, 'error')
+        return redirect(url_for('register'))
     return render_template('register.html')
 
 @app.route('/api/check_username', methods=['POST'])
@@ -76,8 +99,11 @@ def check_username():
 @app.route('/logout')
 @login_required
 def logout():
+    # Log activity before clearing user data
     activity_service.log_activity(current_user.username, "User logged out")
     logout_user()
+    session.clear()  # Ensure all session data is wiped
+    flash('You have been successfully logged out.', 'success')
     return redirect(url_for('login'))
 
 @app.route('/tasks')
@@ -119,8 +145,12 @@ def add_task():
     success, message = task_service.create_task(task_data)
     if success:
         activity_service.log_activity(current_user.username, f"Task created: {task_data['title']}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash('Task added successfully', 'success')
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': message})
         flash(message, 'error')
     return redirect(url_for('tasks'))
 
@@ -134,6 +164,8 @@ def edit_task(task_id):
         'status': request.form.get('status')
     }
     success, msg = task_service.update_task(task_id, data, current_user.id, current_user.role == 'admin')
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': success, 'error': msg if not success else None})
     flash(msg if not success else 'Task updated', 'success' if success else 'error')
     return redirect(url_for('tasks'))
 
@@ -143,8 +175,12 @@ def archive_task(task_id):
     success, msg = archive_service.archive_task(task_id, current_user.id, current_user.role == 'admin')
     if success:
         activity_service.log_activity(current_user.username, f"Archived task {task_id}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash('Task archived', 'success')
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': msg})
         flash(msg, 'error')
     return redirect(url_for('tasks'))
 
@@ -154,8 +190,12 @@ def restore_task(task_id):
     success, msg = archive_service.restore_task(task_id, current_user.id, current_user.role == 'admin')
     if success:
         activity_service.log_activity(current_user.username, f"Restored task {task_id}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash('Task restored', 'success')
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': msg})
         flash(msg, 'error')
     return redirect(url_for('tasks'))
 
@@ -165,6 +205,9 @@ def search_tasks():
     query = request.args.get('q', '').lower()
     status = request.args.get('status')
     priority = request.args.get('priority')
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 10))
+    offset = (page - 1) * limit
     
     results = task_service.search(
         query=query, 
@@ -172,7 +215,19 @@ def search_tasks():
         priority=priority, 
         user_id=current_user.id if current_user.role != 'admin' else None
     )
-    return jsonify(results)
+    
+    total_results = len(results)
+    paginated_results = results[offset : offset + limit]
+    
+    return jsonify({
+        'data': paginated_results,
+        'pagination': {
+            'page': page,
+            'limit': limit,
+            'total_pages': (total_results + limit - 1) // limit,
+            'total_count': total_results
+        }
+    })
 
 @app.route('/api/insights')
 @login_required

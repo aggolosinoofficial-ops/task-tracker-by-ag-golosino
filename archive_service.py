@@ -5,7 +5,7 @@ class ArchiveService:
     def __init__(self, xml_service):
         self.xml = xml_service
         self.tasks_file = "tasks"
-        self.archive_file = "archived_tasks"
+        self.archive_file = "archive_tasks" # Updated to match documentation
 
     def get_archived_task(self, task_id, user_id=None):
         xpath = "//task[@id=$tid]"
@@ -65,7 +65,9 @@ class ArchiveService:
         task_node = task_nodes[0]
         
         # Ownership check (typically based on original creator)
-        if not is_admin and task_node.findtext('created_by') != str(user_id):
+        created_by = task_node.findtext('created_by')
+        assigned_to = task_node.findtext('assigned_to')
+        if not is_admin and str(user_id) not in [created_by, assigned_to]:
             return False, "Permission denied."
             
         tasks_tree = self.xml.get_element_tree(self.tasks_file)

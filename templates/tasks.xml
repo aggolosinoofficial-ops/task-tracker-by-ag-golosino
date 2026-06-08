@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <task id="1">
+    <title>Buy groceries</title>
+    <description>Milk, eggs, bread, and fruits</description>
+    <priority>Medium</priority>
+    <status>pending</status>
+    <created_by>1</created_by>
+    <assigned_to>1</assigned_to>
+    <created_date>2023-10-27T10:00:00</created_date>
+  </task>
+</tasks>

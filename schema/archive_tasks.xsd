@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+    <xs:element name="archive_tasks">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="archive_task" type="archiveTaskType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="deleted_tasks">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="deleted_task" type="deletedTaskType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="archiveTaskType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:positiveInteger"/>
+            <xs:element name="user_id" type="xs:positiveInteger"/>
+            <xs:element name="title" type="string255"/>
+            <xs:element name="description" type="string1000"/>
+            <xs:element name="status" type="statusType"/>
+            <xs:element name="created_at" type="xs:dateTime"/>
+            <xs:element name="archived_at" type="xs:dateTime"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="deletedTaskType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:positiveInteger"/>
+            <xs:element name="user_id" type="xs:positiveInteger"/>
+            <xs:element name="title" type="string255"/>
+            <xs:element name="description" type="string1000"/>
+            <xs:element name="status" type="statusType"/>
+            <xs:element name="created_at" type="xs:dateTime"/>
+            <xs:element name="deleted_at" type="xs:dateTime"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="string255">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="255"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="string1000">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="0"/>
+            <xs:maxLength value="1000"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="statusType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="pending"/>
+            <xs:enumeration value="completed"/>
+            <xs:enumeration value="in_progress"/>
+            <xs:enumeration value="cancelled"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>

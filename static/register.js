@@ -168,9 +168,20 @@ function handleRegistrationSubmit(e) {
 
     fetch('/register', {
         method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: formData
     })
-    .then(response => response.json())
+    .then(async response => {
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('Invalid response from server:', text);
+            throw new Error('Server returned an error page instead of data. Check server logs.');
+        }
+    })
     .then(data => {
         if (data.success) {
             showMessage('Registration successful! Redirecting...', 'success');

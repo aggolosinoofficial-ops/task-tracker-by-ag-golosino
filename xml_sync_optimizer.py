@@ -187,7 +187,7 @@ class XMLMySQLSync:
                 host='localhost',
                 user='root',
                 password='',
-                database='test',
+                database='task_tracker',
                 connect_timeout=5
             )
             cursor = conn.cursor()
@@ -284,7 +284,7 @@ class XMLMySQLSync:
                 host='localhost',
                 user='root',
                 password='',
-                database='test',
+                database='task_tracker',
                 connect_timeout=5
             )
             cursor = conn.cursor(pymysql.cursors.DictCursor)

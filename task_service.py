@@ -3,6 +3,7 @@ from lxml import etree
 
 class TaskService:
     def __init__(self, xml_service):
+        """Initializes the TaskService with a dependency on XMLService."""
         self.xml = xml_service
         self.filename = "tasks"
 
@@ -52,15 +53,15 @@ class TaskService:
             el = etree.SubElement(new_task, key)
             el.text = val
             
-        return self.xml.save_safely(self.filename, tree)
+        return self.xml.save_safely(self.filename, tree, task_id)
 
     def get_archived_tasks(self, user_id=None):
+        """Retrieves archived tasks. Uses 'archive_tasks' to match ArchiveService naming."""
         tasks = []
-        # Use streaming for archive as it can grow large
-        for task_el in self.xml.iter_all("archived_tasks", 'task'):
-            if user_id:
-                if task_el.findtext('created_by') != str(user_id):
-                    continue
+        # Using streaming iterator for efficiency
+        for task_el in self.xml.iter_all("archive_tasks", 'task'):
+            if user_id and task_el.findtext('created_by') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+                continue
             tasks.append(self._element_to_dict(task_el))
         return tasks
 
@@ -87,9 +88,12 @@ class TaskService:
             node = task.find(key)
             if node is not None:
                 node.text = str(value)
+            else:
+                # Create the element if it doesn't exist to prevent missing data
+                etree.SubElement(task, key).text = str(value)
         
         task.find('last_updated').text = datetime.now().isoformat()
-        return self.xml.save_safely(self.filename, tree)
+        return self.xml.save_safely(self.filename, tree, task_id)
 
     def update_task_status(self, task_id, status, user_id, is_admin=False):
         return self.update_task(task_id, {'status': status}, user_id, is_admin)
@@ -108,7 +112,7 @@ class TaskService:
             return False, "Unauthorized."
             
         task.getparent().remove(task)
-        return self.xml.save_safely(self.filename, tree)
+        return self.xml.save_safely(self.filename, tree, task_id)
 
     def get_dashboard_stats(self, user_id):
         tasks = self.get_all_tasks(user_id)
@@ -162,9 +166,14 @@ class TaskService:
         }
 
     def search(self, query='', status=None, priority=None, user_id=None):
-        tasks = self.get_all_tasks(user_id)
         filtered = []
-        for t in tasks:
+        # Optimization: Use streaming for search to remain memory efficient
+        for task_el in self.xml.iter_all(self.filename, 'task'):
+            if user_id:
+                if task_el.findtext('created_by') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+                    continue
+            
+            t = self._element_to_dict(task_el)
             if query and query not in t['title'].lower() and query not in t['description'].lower():
                 continue
             if status and t['status'] != status:

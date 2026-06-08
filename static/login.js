@@ -52,6 +52,7 @@ function handleLogin(e) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'include',  // Include cookies to maintain session across requests
         body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&csrf_token=${encodeURIComponent(csrfToken)}`
@@ -103,7 +104,7 @@ function handleLogin(e) {
         
         // Check if it's a connection error
         if (error.message.includes('Failed to fetch')) {
-            showMessage('✗ Connection error: Could not reach server. Is XAMPP running?', 'error');
+            showMessage('✗ Connection error: Could not reach server. Is the Flask app running?', 'error');
         } else {
             showMessage('✗ Network error: ' + error.message, 'error');
         }

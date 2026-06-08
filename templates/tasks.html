@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">All Tasks</h2>
+        <a href="{{ url_for('add_task_view') }}" class="btn btn-primary">
+            <span class="me-2">➕</span>Add New Task
+        </a>
+    </div>
+
+    <!-- Required for notifications from script.js -->
+    <div id="notificationContainer"></div>
+    
+    <!-- Required for loading state in script.js -->
+    <div id="loading" class="text-center my-5" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading tasks...</span>
+        </div>
+    </div>
+
+    <!-- Required for dynamic task injection -->
+    <div id="taskList" class="cards-container"></div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}

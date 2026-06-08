@@ -1,6 +1,5 @@
 from lxml import etree
 from datetime import datetime
-from collections import deque
 
 class ActivityService:
     def __init__(self, xml_service):
@@ -22,12 +21,14 @@ class ActivityService:
     def get_recent_logs(self, limit=10):
         """Retrieves the most recent logs using the memory-efficient iterator."""
         logs = []
-        # Use a deque to capture only the last N logs without loading the full file into RAM
-        # We must process elements inside the loop because the iterator clears them afterward
-        recent_q = deque(maxlen=limit)
-        for log_el in self.xml.iter_all(self.filename, 'log'):
-            recent_q.append(self._element_to_dict(log_el))
-        return list(reversed(recent_q))
+        # Using iter_all to handle potentially large log files on 2GB RAM
+        all_logs = list(self.xml.iter_all(self.filename, 'log'))
+        # Get the last N logs
+        recent = all_logs[-limit:] if len(all_logs) > limit else all_logs
+        
+        for log_el in reversed(recent):
+            logs.append(self._element_to_dict(log_el))
+        return logs
 
     def get_all_logs(self):
         """Returns all logs for the admin view."""

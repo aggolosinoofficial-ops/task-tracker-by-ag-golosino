@@ -17,22 +17,36 @@ class AuthService:
     def authenticate(self, username, password):
         # Normalize username to lowercase for the search to prevent case-sensitivity issues
         users = self.xml.find_all(self.filename, "//user[username=$u]", u=username.lower())
-        if users:
-            user_el = users[0]
-            stored_hash = user_el.findtext('password_hash')
-            if stored_hash:
-                try:
-                    if check_password_hash(stored_hash, password):
-                        return User(
-                            id=user_el.get('id'),
-                            username=user_el.findtext('username', 'Unknown'),
-                            role=user_el.findtext('role', 'user')
-                        )
-                except (ValueError, Exception) as e:
-                    # Catch incompatible hash formats (like PHP $2y$) or unexpected errors
-                    # This prevents the server from crashing and returning HTML instead of JSON
-                    print(f"[AuthService] Hashing error during login: {e}")
-                    return None
+        if not users:
+            return None
+
+        user_el = users[0]
+        stored_hash = user_el.findtext('password_hash')
+
+        # Prevent Werkzeug from raising when the stored hash is missing/empty/malformed.
+        if stored_hash is None or not str(stored_hash).strip():
+            print("[AuthService] Empty password_hash encountered during login")
+            return None
+
+        stored_hash = str(stored_hash).strip()
+
+        try:
+            if check_password_hash(stored_hash, password):
+                return User(
+                    id=user_el.get('id'),
+                    username=user_el.findtext('username', 'Unknown'),
+                    role=user_el.findtext('role', 'user')
+                )
+        except ValueError as e:
+            # Incompatible hash format (e.g., legacy/foreign hash string) or parse failure.
+            # Werkzeug sometimes throws this for invalid hash strings.
+            print(f"[AuthService] Invalid/unsupported password hash during login: {e}")
+            return None
+        except Exception as e:
+            # Any other unexpected hashing error.
+            print(f"[AuthService] Unexpected hashing error during login: {e}")
+            return None
+
         return None
 
     def get_user_by_id(self, user_id):

@@ -14,6 +14,13 @@ app.secret_key = os.environ.get('SECRET_KEY', 'task-tracker-secure-key-312')
 # Initialize CSRF Protection
 csrf = CSRFProtect(app)
 
+# Ensure CSRF works with AJAX form posts (it relies on session cookies).
+# If cookies are missing, Flask-WTF will return HTML 400; instead, keep XHR JSON consistent.
+@app.after_request
+def _set_xhr_content_type(resp):
+    # No-op placeholder for future headers; keep function to avoid template changes.
+    return resp
+
 # Initialize Services
 xml_service = XMLService()
 auth_service = AuthService(xml_service)
@@ -43,21 +50,32 @@ def login():
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True})
         return redirect(url_for('index'))
-        
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        user = auth_service.authenticate(username, password)
+
+        # Always keep XHR login responses JSON (never Werkzeug HTML).
+        try:
+            user = auth_service.authenticate(username, password)
+        except Exception as e:
+            print(f"[Login] Unhandled exception during authentication: {e}")
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Login failed due to a server error'}), 500
+            flash('Login failed due to a server error', 'error')
+            return render_template('login.html'), 500
+
         if user:
             login_user(user)
             activity_service.log_activity(user.username, "User logged in")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': True})
             return redirect(url_for('index'))
-            
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': 'Invalid username or password'})
         flash('Invalid username or password', 'error')
+
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])

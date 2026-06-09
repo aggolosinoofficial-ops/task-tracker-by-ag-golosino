@@ -9,6 +9,17 @@ class User(UserMixin):
         self.username = username
         self.role = role
 
+    @classmethod
+    def from_element(cls, el):
+        """Factory method to create a User object from an lxml element."""
+        if el is None:
+            return None
+        return cls(
+            id=el.get('id'),
+            username=el.findtext('username', 'Unknown'),
+            role=el.findtext('role', 'user')
+        )
+
 class AuthService:
     def __init__(self, xml_service):
         self.xml = xml_service
@@ -25,22 +36,30 @@ class AuthService:
             return None
 
         user_el = users[0]
+        # 1. Fetch the hash from the correct tag
         stored_hash = user_el.findtext('password_hash')
+        if stored_hash is None:
+            stored_hash = user_el.findtext('password')
 
-        # Prevent Werkzeug from raising when the stored hash is missing/empty/malformed.
         if stored_hash is None or not str(stored_hash).strip():
-            print("[AuthService] Empty password_hash encountered during login")
+            print(f"[AuthService] Login failed: No password hash found for user '{username}'.")
             return None
 
         stored_hash = str(stored_hash).strip()
 
+        # 2. Normalize PHP-style BCrypt hashes ($2y$ -> $2b$)
+        # Python's bcrypt library often rejects the $2y$ prefix used by PHP.
+        if stored_hash.startswith('$2y$'):
+            stored_hash = stored_hash.replace('$2y$', '$2b$', 1)
+            print(f"[AuthService] Normalized legacy PHP hash for user '{username}'.")
+
+        # Werkzeug's check_password_hash might expect an explicit 'bcrypt$' prefix
+        # for hashes starting with $2b$, depending on its version.
+        hash_to_check = f"bcrypt${stored_hash}" if stored_hash.startswith('$2b$') else stored_hash
+
         try:
-            if check_password_hash(stored_hash, password):
-                return User(
-                    id=user_el.get('id'),
-                    username=user_el.findtext('username', 'Unknown'),
-                    role=user_el.findtext('role', 'user')
-                )
+            if check_password_hash(hash_to_check, password):
+                return User.from_element(user_el)
             else:
                 print(f"[AuthService] Login failed: Incorrect password for user '{username}'.")
         except ValueError as e:
@@ -58,12 +77,7 @@ class AuthService:
     def get_user_by_id(self, user_id):
         users = self.xml.find_all(self.filename, "//user[@id=$id]", id=user_id)
         if users:
-            user_el = users[0]
-            return User(
-                id=user_el.get('id'),
-                username=user_el.findtext('username', 'Unknown'),
-                role=user_el.findtext('role', 'user')
-            )
+            return User.from_element(users[0])
         return None
 
     def username_exists(self, username):

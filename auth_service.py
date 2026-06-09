@@ -2,6 +2,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from lxml import etree
 from datetime import datetime
+import bcrypt
 
 class User(UserMixin):
     def __init__(self, id, username, role):
@@ -53,12 +54,16 @@ class AuthService:
             stored_hash = stored_hash.replace('$2y$', '$2b$', 1)
             print(f"[AuthService] Normalized legacy PHP hash for user '{username}'.")
 
-        # Werkzeug's check_password_hash might expect an explicit 'bcrypt$' prefix
-        # for hashes starting with $2b$, depending on its version.
-        hash_to_check = f"bcrypt${stored_hash}" if stored_hash.startswith('$2b$') else stored_hash
-
         try:
-            if check_password_hash(hash_to_check, password):
+            # For legacy BCrypt hashes ($2b$), use the bcrypt library directly.
+            # For new hashes (scrypt/pbkdf2), use Werkzeug's check_password_hash.
+            is_valid = False
+            if stored_hash.startswith('$2b$'):
+                is_valid = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+            else:
+                is_valid = check_password_hash(stored_hash, password)
+
+            if is_valid:
                 return User.from_element(user_el)
             else:
                 print(f"[AuthService] Login failed: Incorrect password for user '{username}'.")

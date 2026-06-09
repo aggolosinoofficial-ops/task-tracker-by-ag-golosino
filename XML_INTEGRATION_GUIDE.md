@@ -1,11 +1,11 @@
-# XML Database Integration Guide
+# XML-Only Architecture: Legacy PHP Integration Guide (Obsolete)
 
 ## Overview
 
-This implementation adds XML and XSD file support to your to-do app while maintaining full compatibility with the existing MySQL database. You can now choose to use either MySQL or XML for data storage, or even use both simultaneously.
+This document describes a legacy PHP implementation that integrated XML and XSD file support while maintaining compatibility with a MySQL database. **This architecture is now obsolete.** The current system is a Python Flask application that operates in an **XML-Only mode**, with all MySQL dependencies removed.
 
 ## Files Created
-
+*(These files are part of the legacy PHP system and are no longer used in the current Python Flask application.)*
 ### 1. **tasks.xml**
 
 - Local XML database file storing all tasks
@@ -19,7 +19,7 @@ This implementation adds XML and XSD file support to your to-do app while mainta
 - Defines valid status values: pending, completed, in_progress, cancelled
 - Enforces required fields and data constraints
 
-### 3. **xml_handler.php**
+### 3. **xml_handler.php (Legacy PHP)**
 
 - Core XML handling class: `XMLTaskHandler`
 - Provides methods for CRUD operations on XML tasks
@@ -34,7 +34,7 @@ This implementation adds XML and XSD file support to your to-do app while mainta
   - `exportJSON()` - Export tasks as JSON
 
 ### 4. **db_adapter.php**
-
+*(Legacy PHP file)*
 - Unified database adapter supporting MySQL and XML backends
 - Switch between backends by changing constructor parameter
 - Methods:
@@ -45,7 +45,7 @@ This implementation adds XML and XSD file support to your to-do app while mainta
 
 ## Usage Examples
 
-### Using XML Handler Directly
+### Using XML Handler Directly (Legacy PHP Example)
 
 ```php
 <?php

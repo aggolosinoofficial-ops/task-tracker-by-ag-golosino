@@ -1,7 +1,5 @@
 flask
 flask-login
 flask-wtf
-werkzeug
 lxml
 portalocker
-pymysql

@@ -8,8 +8,6 @@
 Problem: Can't register?
 ├─ Error "Too many attempts"?
 │  └─ Check DEV_MODE in config.php (should be true for testing)
-├─ Error "Database error"?
-│  └─ Check MySQL connection in db.php
 └─ Registration succeeds but user not in users.xml?
    └─ Check XML file permissions (chmod 644)
 

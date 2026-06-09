@@ -4,8 +4,8 @@
 
 Complete system optimization implementing relaxed validation rules, centralized validation module, and improved security configuration.
 
-**Status:** ✅ **COMPLETE**
-**Date:** June 2, 2026
+**Status:** ✅ **COMPLETE - REFINED FOR XML-ONLY**
+**Date:** June 9, 2026
 **Scope:** Validation rules update, security hardening, configuration optimization
 
 ---
@@ -14,7 +14,7 @@ Complete system optimization implementing relaxed validation rules, centralized 
 
 ### 1. ✅ Centralized Validation Module (`validation.php`)
 
-**Purpose:** Single source of truth for all validation logic
+**Purpose:** Single source of truth for all validation logic (now handled by Python `AuthService`)
 
 **New Module Includes:**
 
@@ -22,7 +22,7 @@ Complete system optimization implementing relaxed validation rules, centralized 
 - `validatePassword()` - Password strength (8 char minimum, no forced requirements)
 - `validateLoginCredentials()` - Login form validation
 - `validateRegistration()` - Full registration validation
-- `usernameExists()` - Checks both DB and XML for username existence
+- `usernameExists()` - Checks XML for username existence
 - `getPasswordStrength()` - Returns password strength indicator (weak/fair/good/strong)
 
 **Benefits:**
@@ -82,7 +82,7 @@ Complete system optimization implementing relaxed validation rules, centralized 
 
 ### 4. ✅ Centralized File Updates
 
-#### `config.php` Changes:
+#### Configuration Changes (now handled in Python `app.py` or environment variables):
 
 ```php
 // BEFORE
@@ -120,11 +120,9 @@ define('PASSWORD_REQUIRE_SPECIAL', false);    // Optional
 - ✅ Uses `validateUsername()` for format validation
 - ✅ Only triggers "not available" if username truly exists
 
-#### `login.php` Changes:
-
+#### Login Logic:
 - ✅ Added `include 'validation.php'`
-- ✅ Added XML fallback support (if DB unavailable)
-- ✅ Queries XML users.xml if database connection fails
+- ✅ Now purely XML-driven (MySQL logic removed)
 - ✅ Maintains CSRF token validation and rate limiting
 
 #### `register.html` & `register.js` Updates:

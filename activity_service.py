@@ -21,14 +21,14 @@ class ActivityService:
     def get_recent_logs(self, limit=10):
         """Retrieves the most recent logs using the memory-efficient iterator."""
         logs = []
-        # Using iter_all to handle potentially large log files on 2GB RAM
-        all_logs = list(self.xml.iter_all(self.filename, 'log'))
-        # Get the last N logs
-        recent = all_logs[-limit:] if len(all_logs) > limit else all_logs
-        
-        for log_el in reversed(recent):
+        # We must extract data inside the loop because iter_all clears elements to save memory
+        for log_el in self.xml.iter_all(self.filename, 'log'):
             logs.append(self._element_to_dict(log_el))
-        return logs
+            
+        # Get the last N logs and reverse for chronological view (newest first)
+        recent = logs[-limit:] if len(logs) > limit else logs
+        recent.reverse()
+        return recent
 
     def get_all_logs(self):
         """Returns all logs for the admin view."""

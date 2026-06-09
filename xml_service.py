@@ -1,14 +1,14 @@
 import os
 from lxml import etree
-import time
 import tempfile
-import json
 from contextlib import nullcontext
 try:
-    import portalocker # type: ignore
+    import portalocker
+    HAS_PORTALOCKER = True
 except ImportError:
     # Fallback if portalocker is not installed (less safe for concurrent writes)
     portalocker = None
+    HAS_PORTALOCKER = False
 
 class XMLService:
     def __init__(self):
@@ -50,7 +50,7 @@ class XMLService:
         if filename in self._cache and self._last_load.get(filename) == mtime:
             return self._cache[filename]
 
-        if not os.path.exists(xml_path) or (os.path.exists(xml_path) and os.path.getsize(xml_path) == 0):
+        if not os.path.exists(xml_path) or os.path.getsize(xml_path) == 0:
             root = etree.Element(filename)
             tree = etree.ElementTree(root)
         else:
@@ -60,29 +60,6 @@ class XMLService:
         self._cache[filename] = tree
         self._last_load[filename] = mtime
         return tree
-
-    def _log_sync_requirement(self, filename, action="UPDATE", entity_id=None):
-        """Logs a modification requirement to the sync queue for Phase 4 MySQL reconciliation."""
-        queue_path = os.path.join(self.data_dir, 'sync_queue.json')
-        entry = {
-            'filename': filename,
-            'timestamp': time.time(),
-            'action': action,
-            'id': entity_id,
-            'status': 'pending'
-        }
-        
-        queue = []
-        if os.path.exists(queue_path):
-            with open(queue_path, 'r') as f:
-                try:
-                    queue = json.load(f)
-                except:
-                    pass
-        
-        queue.append(entry)
-        with open(queue_path, 'w') as f:
-            json.dump(queue, f, indent=2)
 
     def find_all(self, filename, xpath, **variables):
         """Finds elements using XPath with variable support to prevent injection."""
@@ -106,7 +83,7 @@ class XMLService:
 
     def _lock_file(self, path):
         """Internal helper to lock a file for writing."""
-        if portalocker:
+        if HAS_PORTALOCKER:
             return portalocker.Lock(path, timeout=5)
         return None
 
@@ -144,7 +121,6 @@ class XMLService:
         
         self._cache[filename] = tree
         self._last_load[filename] = os.path.getmtime(xml_path)
-        self._log_sync_requirement(filename, "UPDATE", entity_id)
         return True, "Success"
 
     def get_next_id(self, filename, tag_name):

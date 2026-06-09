@@ -1,4 +1,4 @@
-# XML-First Testing & Verification Guide
+# XML-Only Testing & Verification Guide
 
 **Duration:** 20-30 minutes  
 **Goal:** Verify XML-first storage works correctly  
@@ -6,9 +6,9 @@
 
 ---
 
-## 🎯 Quick Overview
+## 🎯 Quick Overview (XML-Only Architecture)
 
-This guide walks you through testing the new XML-first architecture:
+This guide walks you through testing the new XML-Only architecture:
 
 1. **Offline test** - Proves system works WITHOUT MySQL
 2. **Data integrity** - Verify XML files contain correct data
@@ -24,17 +24,15 @@ Before starting, make sure:
 
 - [ ] `xml_storage_core.php` is in project root
 - [ ] `storage_adapter.php` is in project root
-- [ ] At least one PHP file updated to use `$storageAdapter`
 - [ ] XML files exist: `users.xml`, `tasks.xml`, `archive_tasks.xml`
-- [ ] MySQL is currently **running**
 
 Check:
 ```bash
 cd /path/to/task-tracker
-ls -la xml_storage_core.php storage_adapter.php
-ls -la *.xml
+ls -la data/*.xml
+ls -la schema/*.xsd
 
-# All should exist
+# All XML data files and XSD schema files should exist
 ```
 
 ---
@@ -43,7 +41,7 @@ ls -la *.xml
 
 ### Register a User (MySQL ON)
 
-**With MySQL running:**
+**With the Flask app running:**
 
 ```bash
 # 1. Open browser
@@ -64,10 +62,10 @@ ls -la *.xml
 # Expected: YES ✓
 
 # 6. Verify XML file was created
-cat users.xml
+cat data/users.xml
 
 # Should see:
-# <user id="1">
+# <user id="1"> (or similar, depending on existing users)
 #   <username>testuser1</username>
 #   <password_hash>$2y$10$...</password_hash>
 # </user>
@@ -85,7 +83,7 @@ cat users.xml
 # Expected: Task appears in list ✓
 
 # 4. Verify XML file
-cat tasks.xml
+cat data/tasks.xml
 
 # Should contain:
 # <task id="1" user_id="1">
@@ -99,29 +97,18 @@ cat tasks.xml
 
 ---
 
-## 🔌 Test 2: Offline Mode (10 minutes)
+## 🔌 Test 2: Standalone Operation (10 minutes)
 
-**This proves XML-first really works!**
+**This proves the XML-Only architecture works!**
 
-### Step 1: Stop MySQL
+### Step 1: Ensure no external database is connected
 
-**On Linux/Mac:**
+Since the system is XML-Only, there's no external database to stop. The application relies solely on the local XML files.
+
 ```bash
-sudo systemctl stop mysql
-
-# Verify it's stopped:
-sudo systemctl status mysql
-# Should show: "inactive (dead)"
-```
-
-**On Windows (XAMPP):**
-- Open XAMPP Control Panel
-- Click "Stop" button next to MySQL
-- Status should show red "X"
-
-**On Mac (Homebrew):**
-```bash
-brew services stop mysql
+# No action needed here, as the system is XML-Only.
+# If you previously had a MySQL connection, ensure all pymysql dependencies are removed
+# and no database connection attempts are made in the Python code.
 ```
 
 ### Step 2: Try to Register (Without MySQL)
@@ -142,7 +129,7 @@ cat users.xml
 
 # Should now have TWO users:
 # <user id="1">...</user>
-# <user id="2">...</user>
+# <user id="2">...</user> (or similar)
 ```
 
 ### Step 3: Try to Login (Without MySQL)
@@ -611,4 +598,3 @@ cat users.xml | python3 -m json.tool
 **Testing Complete!** 🚀
 
 Your task tracker now has enterprise-grade offline capability. The system is robust, fast, and will keep working even if MySQL goes down.
-

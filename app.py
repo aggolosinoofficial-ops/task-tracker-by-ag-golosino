@@ -2,6 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFError
 from auth_service import AuthService
 from task_service import TaskService
 from activity_service import ActivityService
@@ -36,6 +37,13 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return auth_service.get_user_by_id(user_id)
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    print(f"[Security] CSRF Blocked: {e.description}")
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': False, 'error': 'Security token expired. Please refresh the page.'}), 400
+    return render_template('login.html', error="Security token expired. Please refresh."), 400
 
 @app.route('/')
 @login_required

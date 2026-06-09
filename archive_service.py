@@ -1,4 +1,5 @@
 from lxml import etree
+from datetime import datetime
 import copy
 
 class ArchiveService:
@@ -42,16 +43,23 @@ class ArchiveService:
         
         # Use deepcopy to preserve all data including attributes
         archived_node = copy.deepcopy(task_node)
+
+        # Add archived_at timestamp so the xml_sync_optimizer can prune old tasks
+        arch_ts = archived_node.find('archived_at')
+        if arch_ts is None:
+            etree.SubElement(archived_node, 'archived_at').text = datetime.now().isoformat()
+        else:
+            arch_ts.text = datetime.now().isoformat()
         
         archive_root.append(archived_node)
         root.remove(task_node)
         
         # Save both files; save_safely performs XSD validation before writing
-        success, msg = self.xml.save_safely(self.tasks_file, tree)
+        success, msg = self.xml.save_safely(self.tasks_file, tree, task_id)
         if not success:
             return False, msg
             
-        return self.xml.save_safely(self.archive_file, archive_tree)
+        return self.xml.save_safely(self.archive_file, archive_tree, task_id)
 
     def restore_task(self, task_id, user_id, is_admin=False):
         """Moves a task from archived_tasks.xml back to tasks.xml."""
@@ -76,14 +84,19 @@ class ArchiveService:
         # Use deepcopy to ensure consistency
         restored_node = copy.deepcopy(task_node)
         
+        # Remove archived_at timestamp when moving back to active
+        arch_ts = restored_node.find('archived_at')
+        if arch_ts is not None:
+            restored_node.remove(arch_ts)
+
         tasks_root.append(restored_node)
         archive_root.remove(task_node)
         
-        success, msg = self.xml.save_safely(self.archive_file, archive_tree)
+        success, msg = self.xml.save_safely(self.archive_file, archive_tree, task_id)
         if not success:
             return False, msg
             
-        return self.xml.save_safely(self.tasks_file, tasks_tree)
+        return self.xml.save_safely(self.tasks_file, tasks_tree, task_id)
 
     def _element_to_dict(self, el):
         data = {'id': el.get('id')}

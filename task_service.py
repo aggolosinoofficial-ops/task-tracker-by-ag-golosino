@@ -44,7 +44,7 @@ class TaskService:
             'status': 'pending',
             'created_by': str(data['created_by']),
             'assigned_to': str(data.get('assigned_to', data['created_by'])),
-            'created_date': datetime.now().isoformat(),
+            'created_at': datetime.now().isoformat(),
             'due_date': data.get('due_date', ''),
             'last_updated': datetime.now().isoformat()
         }
@@ -129,13 +129,13 @@ class TaskService:
             
         all_relevant_tasks = tasks + archived
         for t in all_relevant_tasks:
-            created_at_str = t.get('created_date')
+            created_at_str = t.get('created_at')
             if created_at_str:
                 try:
                     dt = datetime.fromisoformat(created_at_str)
                     if dt < earliest_date: earliest_date = dt
                     
-                    date_key = created_at_str.split('T')[0]
+                    date_key = created_at_str.split('T')[0] if 'T' in created_at_str else created_at_str
                     if date_key in daily_data:
                         daily_data[date_key] += 1
                 except (ValueError, TypeError): continue

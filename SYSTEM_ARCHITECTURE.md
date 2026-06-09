@@ -1,8 +1,8 @@
-# System Architecture: Task Tracker (XML-First Hybrid)
+# System Architecture: Task Tracker (XML-Only)
 
 ## 1. Architectural Overview
-The Task Tracker system follows a **High-Availability Hybrid Storage Architecture**. Unlike traditional web applications that rely solely on a Relational Database Management System (RDBMS), this system treats local XML files as the **Primary Source of Truth**. MySQL serves as a **Secondary Persistent Backup** and synchronization target.
-
+The Task Tracker system now follows an **XML-Only Architecture**. It treats local XML files as the **sole and primary source of truth** for all application data. This design completely removes any dependency on a Relational Database Management System (RDBMS) like MySQL.
+ 
 This design is specifically optimized for environments with limited resources (e.g., 2GB RAM) and requires high resilience against database downtime.
 
 ## 2. Core Components
@@ -23,10 +23,9 @@ This design is specifically optimized for environments with limited resources (e
 
 ### 2.4 Maintenance & DevOps
 - **`xml_sync_optimizer.py`:** A CLI utility for file compaction (whitespace removal) and pruning.
-- **`migrate_from_mysql.py`:** Utility to bootstrap the XML store from existing legacy databases.
 
 ## 3. Data Flow (Write Path)
-1. **Request:** User submits a task update.
+1. **Request:** User submits a data modification (e.g., task update, new user).
 2. **Service Logic:** The `TaskService` processes business rules.
 3. **XML Validation:** `XMLService` builds a candidate tree and validates it against `tasks.xsd`.
 4. **Primary Write:** Upon successful validation, the XML file on disk is updated.
@@ -34,5 +33,5 @@ This design is specifically optimized for environments with limited resources (e
 
 ## 4. Resilience Strategy
 - **Offline-First:** If MySQL is unreachable, the system continues to function normally using XML.
-- **Schema Enforcement:** Use of XSD prevents XML "bloat" or corruption that often plagues semi-structured storage.
+- **Schema Enforcement:** Use of XSD prevents XML "bloat" or corruption.
 - **Resource Awareness:** Lazy-loading and compaction scripts ensure the application remains responsive on systems with minimal RAM.

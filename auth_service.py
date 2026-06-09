@@ -15,9 +15,13 @@ class AuthService:
         self.filename = "users"
 
     def authenticate(self, username, password):
+        if not username or not password:
+            return None
+            
         # Normalize username to lowercase for the search to prevent case-sensitivity issues
         users = self.xml.find_all(self.filename, "//user[username=$u]", u=username.lower())
         if not users:
+            print(f"[AuthService] Login failed: User '{username}' not found in XML.")
             return None
 
         user_el = users[0]
@@ -37,6 +41,8 @@ class AuthService:
                     username=user_el.findtext('username', 'Unknown'),
                     role=user_el.findtext('role', 'user')
                 )
+            else:
+                print(f"[AuthService] Login failed: Incorrect password for user '{username}'.")
         except ValueError as e:
             # Incompatible hash format (e.g., legacy/foreign hash string) or parse failure.
             # Werkzeug sometimes throws this for invalid hash strings.
@@ -85,4 +91,4 @@ class AuthService:
         etree.SubElement(new_user, "role").text = role
         etree.SubElement(new_user, "created_at").text = datetime.now().isoformat()
         
-        return self.xml.save_safely(self.filename, tree)
+        return self.xml.save_safely(self.filename, tree, user_id)

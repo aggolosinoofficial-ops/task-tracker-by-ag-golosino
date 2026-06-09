@@ -6,18 +6,14 @@ Lightweight Python script for offline XML operations
 
 Usage:
     python3 xml_sync_optimizer.py --compact      # Minimize XML file size
-    python3 xml_sync_optimizer.py --sync         # Sync XML to MySQL
     python3 xml_sync_optimizer.py --status       # Check storage status
     python3 xml_sync_optimizer.py --prune        # Remove old archived tasks
 """
 
 import xml.etree.ElementTree as ET
-import json
 import sys
 import os
-import time
 from datetime import datetime, timedelta
-import sqlite3
 import argparse
 import logging
 
@@ -32,9 +28,9 @@ class XMLOptimizer:
     """Lightweight XML optimization for 2GB RAM systems"""
     
     def __init__(self):
-        self.users_file = 'users.xml'
-        self.tasks_file = 'tasks.xml'
-        self.archive_file = 'archive_tasks.xml'
+        self.users_file = os.path.join('data', 'users.xml')
+        self.tasks_file = os.path.join('data', 'tasks.xml')
+        self.archive_file = os.path.join('data', 'archive_tasks.xml')
         self.max_file_size = 10 * 1024 * 1024  # 10MB limit
     
     def load_xml(self, filename):
@@ -165,181 +161,6 @@ class XMLOptimizer:
         return stats
 
 
-class XMLMySQLSync:
-    """Sync XML to MySQL for backup/recovery"""
-    
-    def __init__(self):
-        self.optimizer = XMLOptimizer()
-    
-    def sync_to_mysql(self):
-        """Sync all XML files to MySQL database"""
-        logger.info("Starting XML → MySQL sync...")
-        
-        try:
-            import pymysql
-        except ImportError:
-            logger.error("pymysql not installed. Install with: pip install pymysql")
-            return False
-        
-        try:
-            # Connect to MySQL
-            conn = pymysql.connect(
-                host='localhost',
-                user='root',
-                password='',
-                database='task_tracker',
-                connect_timeout=5
-            )
-            cursor = conn.cursor()
-            
-            sync_count = 0
-            
-            # Sync users
-            users_root = self.optimizer.load_xml(self.optimizer.users_file)
-            if users_root:
-                cursor.execute("TRUNCATE TABLE users")
-                for user in users_root.findall('user'):
-                    user_id = user.get('id')
-                    username = user.findtext('username')
-                    password_hash = user.findtext('password_hash')
-                    role = user.findtext('role', 'user')
-                    created_at = user.findtext('created_at')
-                    
-                    cursor.execute(
-                        "INSERT INTO users (id, username, password_hash, role, created_at) VALUES (%s, %s, %s, %s, %s)",
-                        (user_id, username, password_hash, role, created_at)
-                    )
-                    sync_count += 1
-                
-                conn.commit()
-                logger.info(f"  Synced {sync_count} users")
-            
-            # Sync tasks
-            sync_count = 0
-            tasks_root = self.optimizer.load_xml(self.optimizer.tasks_file)
-            if tasks_root:
-                cursor.execute("TRUNCATE TABLE tasks")
-                for task in tasks_root.findall('task'):
-                    task_id = task.get('id')
-                    user_id = task.get('user_id')
-                    title = task.findtext('title')
-                    description = task.findtext('description')
-                    status = task.findtext('status', 'pending')
-                    created_at = task.findtext('created_at')
-                    
-                    cursor.execute(
-                        "INSERT INTO tasks (id, user_id, title, description, status, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                        (task_id, user_id, title, description, status, created_at)
-                    )
-                    sync_count += 1
-                
-                conn.commit()
-                logger.info(f"  Synced {sync_count} tasks")
-            
-            # Sync archived tasks
-            sync_count = 0
-            archive_root = self.optimizer.load_xml(self.optimizer.archive_file)
-            if archive_root:
-                cursor.execute("TRUNCATE TABLE archive_tasks")
-                for task in archive_root.findall('task'):
-                    task_id = task.get('id')
-                    user_id = task.get('user_id')
-                    title = task.findtext('title')
-                    description = task.findtext('description')
-                    status = task.findtext('status', 'pending')
-                    created_at = task.findtext('created_at')
-                    archived_at = task.findtext('archived_at')
-                    
-                    cursor.execute(
-                        "INSERT INTO archive_tasks (id, user_id, title, description, status, created_at, archived_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                        (task_id, user_id, title, description, status, created_at, archived_at)
-                    )
-                    sync_count += 1
-                
-                conn.commit()
-                logger.info(f"  Synced {sync_count} archived tasks")
-            
-            cursor.close()
-            conn.close()
-            
-            logger.info("MySQL sync complete!")
-            return True
-            
-        except Exception as e:
-            logger.error(f"MySQL sync failed: {e}")
-            return False
-    
-    def sync_from_mysql(self):
-        """Restore XML files from MySQL (recovery)"""
-        logger.info("Starting MySQL → XML restore...")
-        
-        try:
-            import pymysql 
-        except ImportError:
-            logger.error("pymysql not installed. Install with: pip install pymysql")
-            return False
-        
-        try:
-            conn = pymysql.connect(
-                host='localhost',
-                user='root',
-                password='',
-                database='task_tracker',
-                connect_timeout=5
-            )
-            cursor = conn.cursor(pymysql.cursors.DictCursor)
-            
-            # Restore users
-            users_root = ET.Element('users')
-            cursor.execute("SELECT * FROM users")
-            for row in cursor.fetchall():
-                user_elem = ET.SubElement(users_root, 'user', id=str(row['id']))
-                ET.SubElement(user_elem, 'username').text = row['username']
-                ET.SubElement(user_elem, 'password_hash').text = row['password_hash']
-                ET.SubElement(user_elem, 'role').text = row['role']
-                ET.SubElement(user_elem, 'created_at').text = str(row['created_at'])
-            
-            self.optimizer.save_xml(users_root, self.optimizer.users_file)
-            logger.info(f"  Restored users")
-            
-            # Restore tasks
-            tasks_root = ET.Element('tasks')
-            cursor.execute("SELECT * FROM tasks")
-            for row in cursor.fetchall():
-                task_elem = ET.SubElement(tasks_root, 'task', id=str(row['id']), user_id=str(row['user_id']))
-                ET.SubElement(task_elem, 'title').text = row['title']
-                ET.SubElement(task_elem, 'description').text = row['description']
-                ET.SubElement(task_elem, 'status').text = row['status']
-                ET.SubElement(task_elem, 'created_at').text = str(row['created_at'])
-            
-            self.optimizer.save_xml(tasks_root, self.optimizer.tasks_file)
-            logger.info(f"  Restored tasks")
-            
-            # Restore archive
-            archive_root = ET.Element('archive_tasks')
-            cursor.execute("SELECT * FROM archive_tasks")
-            for row in cursor.fetchall():
-                task_elem = ET.SubElement(archive_root, 'task', id=str(row['id']), user_id=str(row['user_id']))
-                ET.SubElement(task_elem, 'title').text = row['title']
-                ET.SubElement(task_elem, 'description').text = row['description']
-                ET.SubElement(task_elem, 'status').text = row['status']
-                ET.SubElement(task_elem, 'created_at').text = str(row['created_at'])
-                ET.SubElement(task_elem, 'archived_at').text = str(row['archived_at'])
-            
-            self.optimizer.save_xml(archive_root, self.optimizer.archive_file)
-            logger.info(f"  Restored archived tasks")
-            
-            cursor.close()
-            conn.close()
-            
-            logger.info("MySQL restore complete!")
-            return True
-            
-        except Exception as e:
-            logger.error(f"MySQL restore failed: {e}")
-            return False
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='XML Sync & Optimization Utility',
@@ -347,32 +168,21 @@ def main():
         epilog='''
 Examples:
   python3 xml_sync_optimizer.py --compact      # Minimize XML files
-  python3 xml_sync_optimizer.py --sync         # Sync XML to MySQL
-  python3 xml_sync_optimizer.py --restore      # Restore XML from MySQL
   python3 xml_sync_optimizer.py --prune 30     # Remove archive > 30 days
   python3 xml_sync_optimizer.py --status       # Show file stats
         '''
     )
     
     parser.add_argument('--compact', action='store_true', help='Compact all XML files')
-    parser.add_argument('--sync', action='store_true', help='Sync XML to MySQL')
-    parser.add_argument('--restore', action='store_true', help='Restore XML from MySQL')
     parser.add_argument('--prune', type=int, metavar='DAYS', help='Prune archive older than N days')
     parser.add_argument('--status', action='store_true', help='Show XML file statistics')
     
     args = parser.parse_args()
     
     optimizer = XMLOptimizer()
-    syncer = XMLMySQLSync()
     
     if args.compact:
         optimizer.compact_xml()
-    
-    elif args.sync:
-        syncer.sync_to_mysql()
-    
-    elif args.restore:
-        syncer.sync_from_mysql()
     
     elif args.prune:
         optimizer.prune_archive(args.prune)

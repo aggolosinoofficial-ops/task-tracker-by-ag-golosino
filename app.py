@@ -48,8 +48,18 @@ def handle_csrf_error(e):
 @app.route('/')
 @login_required
 def index():
-    stats = task_service.get_dashboard_stats(current_user.id)
-    recent_activity = activity_service.get_recent_logs(limit=5) or []
+    try:
+        stats = task_service.get_dashboard_stats(current_user.id)
+    except Exception as e:
+        print(f"[Dashboard] Error calculating stats: {e}")
+        stats = {'total': 0, 'completed': 0, 'pending': 0, 'archived': 0, 'completion_rate': 0}
+    
+    try:
+        recent_activity = activity_service.get_recent_logs(limit=5) or []
+    except Exception as e:
+        print(f"[Dashboard] Error loading activity: {e}")
+        recent_activity = []
+        
     return render_template('dashboard.html', stats=stats, activities=recent_activity)
 
 @app.route('/login', methods=['GET', 'POST'])

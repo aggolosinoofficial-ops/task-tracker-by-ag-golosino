@@ -31,7 +31,9 @@ class AuthService:
             return None
             
         # Normalize username to lowercase for the search to prevent case-sensitivity issues
-        users = self.xml.find_all(self.filename, "//user[username=$u]", u=username.lower())
+        # Use normalize-space to handle any stray tabs or newlines in the XML file
+        users = self.xml.find_all(self.filename, "//user[normalize-space(username)=$u]", u=username.lower().strip())
+        
         if not users:
             print(f"[AuthService] Login failed: User '{username}' not found in XML.")
             return None

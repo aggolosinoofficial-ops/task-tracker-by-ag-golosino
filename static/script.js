@@ -176,6 +176,8 @@ function loadTasks(page = 1) {
             }
             
             state.isLoading = false;
+            // Trigger count update and animations after new tasks are rendered
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
         })
         .catch(error => {
             if (loading) loading.style.display = 'none';
@@ -187,8 +189,9 @@ function loadTasks(page = 1) {
 
 function createTaskElement(task) {
     const card = document.createElement('div');
-    card.className = task.status === 'completed' ? 'card completed' : 'card';
+    card.className = task.status === 'completed' ? 'card task-card completed' : 'card task-card';
     card.dataset.taskId = task.id;
+    card.dataset.status = task.status || 'pending';
 
     const titleDiv = document.createElement('div');
     const strong = document.createElement('strong');
@@ -202,6 +205,13 @@ function createTaskElement(task) {
     p.textContent = task.description;
     descDiv.appendChild(p);
     
+    if (task.due_date) {
+        const dateSmall = document.createElement('small');
+        dateSmall.className = 'text-muted d-block mb-2';
+        dateSmall.textContent = `Due: ${task.due_date}`;
+        descDiv.appendChild(dateSmall);
+    }
+
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'card-actions';
     
@@ -356,6 +366,7 @@ function toggleTask(id, currentStatus) {
         if (res.success) {
             showNotification('✓ Updated!', 'success');
             loadTasks();
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
         }
     });
 }
@@ -369,8 +380,9 @@ function restoreTask(id) {
             if (result && result.success) {
                 showNotification('✓ Task restored!', 'success');
                 loadTasks();
+                document.dispatchEvent(new CustomEvent('taskUpdated'));
             } else {
-                showNotification('✗ Error: ' + (result.error || 'Failed'), 'error');
+                showNotification('✗ Error: ' + (result.error || 'Failed to restore'), 'error');
             }
         })
         .catch(err => {
@@ -414,6 +426,7 @@ function deleteTask(id) {
         if (res.success) {
             showNotification('✓ Archived!', 'success');
             loadTasks();
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
         }
     });
 }

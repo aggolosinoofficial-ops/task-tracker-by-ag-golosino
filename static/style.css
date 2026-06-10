@@ -86,11 +86,6 @@ body {
     height: 38px;
     border-radius: 10px;
     transition: background 0.2s ease;
-    color: #667eea;
-}
-.sidebar-toggle {
-    color: var(--accent-color); /* Use variable */
-    transition: background 0.2s ease, color 0.3s ease;
 }
 
 .sidebar-toggle:hover {
@@ -156,13 +151,14 @@ body.dark-mode .side-icon {
 
 .sidebar-footer {
     margin-top: auto;
-    padding: 12px 10px; /* Keep original */
-    border-top: 1px solid rgba(124, 179, 212, 0.35); /* Keep original for now, or make a variable */
+    padding: 12px 10px;
+    border-top: 1px solid rgba(124, 179, 212, 0.35);
     transition: border-color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
-body.dark-mode .sidebar-footer {
-    border-top: 1px solid rgba(0, 255, 255, 0.2); /* Dark mode specific */
-}
+
 .logout-btn {
     width: 100%;
     background-color: #dc3545;
@@ -307,18 +303,29 @@ body.dark-mode .sidebar-footer {
     transition: background 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
 }
 h1 {
-    text-align: center; /* Keep original */
-    background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%); /* Use variables */
+    text-align: center;
+    color: #333; /* Fallback for visibility */
+    background: linear-gradient(135deg, #6ba3d4 0%, #8b9dd4 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
     font-size: 2.8em;
     font-weight: 700;
     letter-spacing: 1px;
     margin-bottom: 15px;
-    margin-top: 0;
     transition: background 0.3s ease;
 }
+
+/* Fix for Invisible Login Title */
+.login-container h1, .login-box h1 {
+    -webkit-text-fill-color: #333 !important;
+    color: #333 !important;
+}
+
+body.dark-mode h1 {
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
+}
+
 /* Form Styles */
 form {
     display: flex;
@@ -552,22 +559,82 @@ input::-ms-clear {
     width: 100%;
 }
 
-.card {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: var(--card-shadow); /* Use variable */
-    padding: 20px;
-    flex-basis: calc(33.333% - 20px);
-    flex-grow: 0;
-    flex-shrink: 0;
-    min-width: 300px;
-    transition: box-shadow 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+/* Summary Cards Layout */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
 }
 
-/* Dark Mode Neon Glow for Cards */
-body.dark-mode .card {
-    /* Custom property for random neon color set by JS */
-    --card-neon-color: var(--neon-cyan); /* Default if JS not loaded */
+.summary-card {
+    background: #fff !important; /* Always clean white */
+    border-radius: 15px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 3px solid transparent;
+    color: #222 !important; /* Always dark for readability */
+}
+
+.summary-card h3 {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.summary-card p {
+    font-size: 2.5em;
+    font-weight: 800;
+    color: #222;
+    margin: 0;
+    display: inline-block;
+}
+
+.summary-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark Mode Neon for Summary Cards */
+body.dark-mode .summary-card {
+    border-color: var(--card-neon-color);
+}
+
+body.dark-mode .summary-card:hover {
+    box-shadow: 0 0 15px var(--card-neon-color), 0 0 30px var(--card-neon-color);
+}
+
+.card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 300px;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                background-color 0.3s ease;
+}
+
+/* Count-Up Animation Effects */
+.count-glow {
+    animation: glowBounce 0.8s ease-out;
+}
+
+@keyframes glowBounce {
+    0%   { transform: scale(1); color:#39ff14; text-shadow:0 0 10px #39ff14; opacity:0.6; }
+    50%  { transform: scale(1.2); color:#ffea00; text-shadow:0 0 20px #ffea00; opacity:1; }
+    100% { transform: scale(1); color:#222; text-shadow:none; opacity:1; }
+}
+
+/* Dark Mode Neon Glow for Cards & Summary Cards */
+body.dark-mode .card, body.dark-mode .summary-card {
     box-shadow: 0 0 5px var(--card-neon-color),
                 0 0 10px var(--card-neon-color),
                 0 0 15px var(--card-neon-color),
@@ -577,9 +644,30 @@ body.dark-mode .card {
 }
 
 .card:hover {
-    box-shadow: var(--card-hover-shadow); /* Use variable */
-    transform: translateY(-4px);
+    transform: translateY(-8px) scale(1.025) !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18) !important;
+    z-index: 10;
 }
+
+body.dark-mode .card:hover {
+    box-shadow: 0 0 20px var(--card-neon-color), 
+                0 0 40px var(--card-neon-color);
+}
+/* Button Alignment and Dark Mode Neon Overrides */
+.card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    width: 100%;
+    padding-top: 15px;
+    justify-content: flex-end;
+}
+
+body.dark-mode .btn-primary, 
+body.dark-mode .card-button { background: #00ffff !important; color: #000 !important; border: none; font-weight: 700; }
+body.dark-mode .btn-success { background: #39ff14 !important; color: #000 !important; border: none; font-weight: 700; }
+body.dark-mode .btn-warning { background: #ffea00 !important; color: #000 !important; border: none; font-weight: 700; }
+body.dark-mode .btn-danger { background: #ff073a !important; color: #fff !important; border: none; font-weight: 700; }
 
 .card-title {
     font-size: 1.25rem;
@@ -948,5 +1036,4 @@ body.dark-mode .card {
         padding: 8px 0;
         font-size: 0.9rem;
     }
-}
-}
+} }

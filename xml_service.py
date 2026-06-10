@@ -54,7 +54,12 @@ class XMLService:
             root = etree.Element(filename)
             tree = etree.ElementTree(root)
         else:
-            tree = etree.parse(xml_path)
+            try:
+                tree = etree.parse(xml_path)
+            except etree.XMLSyntaxError as e:
+                print(f"[XMLService] Critical: {xml_path} is malformed: {e}. Falling back to empty tree.")
+                root = etree.Element(filename)
+                tree = etree.ElementTree(root)
         
         # Update Cache
         self._cache[filename] = tree
@@ -72,14 +77,18 @@ class XMLService:
         if not os.path.exists(xml_path) or os.path.getsize(xml_path) == 0:
             return
 
-        context = etree.iterparse(xml_path, events=('end',), tag=tag_name)
-        for event, elem in context:
-            yield elem
-            elem.clear()
-            parent = elem.getparent()
-            if parent is not None:
-                while elem.getprevious() is not None:
-                    del parent[0]
+        try:
+            context = etree.iterparse(xml_path, events=('end',), tag=tag_name)
+            for event, elem in context:
+                yield elem
+                elem.clear()
+                parent = elem.getparent()
+                if parent is not None:
+                    while elem.getprevious() is not None:
+                        del parent[0]
+        except etree.XMLSyntaxError as e:
+            print(f"[XMLService] Error parsing {xml_path}: {e}. Returning empty iterator.")
+            return
 
     def _lock_file(self, path):
         """Internal helper to lock a file for writing."""
@@ -104,7 +113,7 @@ class XMLService:
                 parser = etree.XMLParser(schema=self._schemas[filename])
                 etree.fromstring(xml_string, parser)
             except etree.DocumentInvalid as e:
-                error_msg = e.error_log.filter_from_errors()[0].message if e.error_log else "Unknown validation error"
+                error_msg = str(e.error_log.filter_from_errors()[0]) if e.error_log else "Unknown validation error"
                 return False, f"Validation failed: {error_msg}"
             except Exception as e:
                 return False, f"Validation error: {str(e)}"

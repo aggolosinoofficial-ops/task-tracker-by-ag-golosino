@@ -7,38 +7,22 @@
 </div>
 
 <!-- Stats Summary -->
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title text-white-50">Total Active</h6>
-                <h2 class="display-6 fw-bold">{{ stats.total|default(0) }}</h2>
-            </div>
-        </div>
+<div class="summary-cards">
+    <div class="summary-card">
+        <h3>Total Active</h3>
+        <p id="total-count">{{ stats.total|default(0) }}</p>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title text-white-50">Completed</h6>
-                <h2 class="display-6 fw-bold">{{ stats.completed|default(0) }}</h2>
-            </div>
-        </div>
+    <div class="summary-card">
+        <h3>Completed</h3>
+        <p id="completed-count">{{ stats.completed|default(0) }}</p>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-info text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title text-white-50">Pending</h6>
-                <h2 class="display-6 fw-bold">{{ stats.pending|default(0) }}</h2>
-            </div>
-        </div>
+    <div class="summary-card">
+        <h3>Pending</h3>
+        <p id="pending-count">{{ stats.pending|default(0) }}</p>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-dark h-100">
-            <div class="card-body">
-                <h6 class="card-title text-dark-50">Archived</h6>
-                <h2 class="display-6 fw-bold">{{ stats.archived|default(0) }}</h2>
-            </div>
-        </div>
+    <div class="summary-card">
+        <h3>Archived</h3>
+        <p id="archived-count">{{ stats.archived|default(0) }}</p>
     </div>
 </div>
 

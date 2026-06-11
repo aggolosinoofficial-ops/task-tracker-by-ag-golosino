@@ -138,10 +138,9 @@ class XMLService:
         found = False
         for el in self.iter_all(filename, tag_name):
             found = True
-            val = el.get('id')
-            if not val:
-                child = el.find('id')
-                val = child.text if child is not None else None
+            # Prioritize child element <id> for the new schema
+            child = el.find('id')
+            val = child.text if child is not None else el.get('id')
             
             if val and val.isdigit():
                 max_id = max(max_id, int(val))

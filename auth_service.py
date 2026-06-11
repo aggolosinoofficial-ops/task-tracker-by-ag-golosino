@@ -16,7 +16,7 @@ class User(UserMixin):
         if el is None:
             return None
         return cls(
-            id=el.get('id'),
+            id=el.findtext('id'),
             username=el.findtext('username', 'Unknown'),
             role=el.findtext('role', 'user')
         )
@@ -82,7 +82,7 @@ class AuthService:
         return None
 
     def get_user_by_id(self, user_id):
-        users = self.xml.find_all(self.filename, "//user[@id=$id]", id=user_id)
+        users = self.xml.find_all(self.filename, "//user[id=$id]", id=user_id)
         if users:
             return User.from_element(users[0])
         return None
@@ -101,12 +101,13 @@ class AuthService:
         root = tree.getroot()
         
         user_id = self.xml.get_next_id(self.filename, "user")
-        new_user = etree.SubElement(root, "user", id=user_id)
+        new_user = etree.SubElement(root, "user")
         
         # Explicitly setting method to 'scrypt' or 'pbkdf2:sha256' avoids the '' method error
         # and ensures compatibility with modern Werkzeug
         hashed_password = generate_password_hash(password, method='scrypt')
         
+        etree.SubElement(new_user, "id").text = user_id
         etree.SubElement(new_user, "username").text = username
         etree.SubElement(new_user, "password_hash").text = hashed_password
         etree.SubElement(new_user, "role").text = role

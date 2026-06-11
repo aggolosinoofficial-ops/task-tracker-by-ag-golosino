@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <tasks>
-  <task id="1">
+  <task>
     <id>1</id>
     <title>Buy groceries</title>
     <description>Milk, eggs, bread, and fruits</description>

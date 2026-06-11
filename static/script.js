@@ -176,7 +176,7 @@ function loadTasks(page = 1) {
             }
             
             state.isLoading = false;
-            if (tasks.length > 0) updateDashboardSummary();
+            updateDashboardSummary();
         })
         .catch(error => {
             if (loading) loading.style.display = 'none';
@@ -336,7 +336,9 @@ function createPaginationControls(pagination, container) {
 function addTask() {
     const title = document.getElementById('title').value.trim();
     const description = document.getElementById('description').value.trim();
-    const category = document.getElementById('category').value.trim();
+    // Support both 'category' and 'priority' IDs to be safe
+    const priorityEl = document.getElementById('priority') || document.getElementById('category');
+    const priority = priorityEl ? priorityEl.value.trim() : 'Medium';
     const csrfToken = document.getElementById('csrf_token')?.value || '';
 
     if (!title) {
@@ -349,10 +351,13 @@ function addTask() {
 
     fetch('/add_task', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&priority=${encodeURIComponent(category)}&csrf_token=${encodeURIComponent(csrfToken)}`
+        headers: { 
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&priority=${encodeURIComponent(priority)}&csrf_token=${encodeURIComponent(csrfToken)}`
     })
-    .then(r => r.redirected ? {success: true} : r.json())
+    .then(r => r.json())
     .then(result => {
         submitBtn.disabled = false;
         if (result.success) {
@@ -392,7 +397,10 @@ function toggleTask(id, currentStatus) {
     getCsrfTokenOrThrow().then(csrf => {
         return fetchJsonSafe(`/edit_task/${id}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: { 
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: `id=${id}&status=${newStatus}&csrf_token=${csrf}`
         });
     }).then(res => {
@@ -439,7 +447,10 @@ function saveEdit(id) {
     getCsrfTokenOrThrow().then(csrf => {
         return fetchJsonSafe(`/edit_task/${id}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: { 
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: `id=${id}&title=${title}&description=${description}&csrf_token=${csrf}`
         });
     }).then(res => {
@@ -454,7 +465,9 @@ function saveEdit(id) {
 function deleteTask(id) {
     if (!confirm('Archive this task?')) return;
     getCsrfTokenOrThrow().then(csrf => {
-        return fetch(`/archive_task/${id}`).then(r => r.redirected ? {success: true} : r.json());
+        return fetch(`/archive_task/${id}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(r => r.json());
     }).then(res => {
         if (res.success) {
             showNotification('✓ Archived!', 'success');

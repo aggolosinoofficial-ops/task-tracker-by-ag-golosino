@@ -86,6 +86,7 @@ class TaskService:
             return False, "Unauthorized."
 
         for key, value in data.items():
+            if value is None: continue
             node = task.find(key)
             if node is not None:
                 node.text = str(value)
@@ -93,7 +94,10 @@ class TaskService:
                 # Create the element if it doesn't exist to prevent missing data
                 etree.SubElement(task, key).text = str(value)
         
-        task.find('last_updated').text = datetime.now().isoformat()
+        last_updated = task.find('last_updated')
+        if last_updated is None:
+            last_updated = etree.SubElement(task, 'last_updated')
+        last_updated.text = datetime.now().isoformat()
         return self.xml.save_safely(self.filename, tree, task_id)
 
     def update_task_status(self, task_id, status, user_id, is_admin=False):
@@ -149,7 +153,7 @@ class TaskService:
         }
 
         total_active = len(tasks)
-        completed = len([t for t in tasks if t['status'] == 'completed'])
+        completed = len([t for t in tasks if t.get('status') == 'completed'])
         completion_rate = round((completed / total_active * 100), 1) if total_active > 0 else 0
         
         days_active = max(1, (now - earliest_date).days + 1)
@@ -164,7 +168,7 @@ class TaskService:
         return {
             'total': total_active,
             'completed': completed,
-            'pending': len([t for t in tasks if t['status'] == 'pending']),
+            'pending': len([t for t in tasks if t.get('status') == 'pending']),
             'high_priority': priorities['High'],
             'priorities': priorities,
             'archived': len(archived),

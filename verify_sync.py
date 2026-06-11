@@ -52,12 +52,13 @@ class SyncVerifier:
                 task_id_el = task.find('id')
                 task_id_val = task_id_el.text if task_id_el is not None else task.get('id')
 
-                # Migration: Move ID from attribute to element
-                if task_id_el is None and task.get('id'):
+                # Migration: Ensure ID is an element and NOT an attribute
+                if task.get('id'):
                     if self.do_fix:
-                        el = ET.Element('id')
-                        el.text = task.get('id')
-                        task.insert(0, el)
+                        if task.find('id') is None:
+                            el = ET.Element('id')
+                            el.text = task.get('id')
+                            task.insert(0, el)
                         task.attrib.pop('id', None)
                         changed = True
                     else:
@@ -138,12 +139,13 @@ class SyncVerifier:
                 user_id_el = user.find('id')
                 user_id_val = user_id_el.text if user_id_el is not None else user.get('id')
 
-                # Migration: Move ID from attribute to element
-                if user_id_el is None and user.get('id'):
+                # Migration: Ensure ID is an element and NOT an attribute
+                if user.get('id'):
                     if self.do_fix:
-                        el = ET.Element('id')
-                        el.text = user.get('id')
-                        user.insert(0, el)
+                        if user.find('id') is None:
+                            el = ET.Element('id')
+                            el.text = user.get('id')
+                            user.insert(0, el)
                         user.attrib.pop('id', None)
                         changed = True
                     else:

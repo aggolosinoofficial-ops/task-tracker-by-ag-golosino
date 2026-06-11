@@ -62,3 +62,7 @@
     color: #667eea; 
     font-weight: 600; 
 }
+
+#insightsContent, #emptyState {
+    display: none;
+}

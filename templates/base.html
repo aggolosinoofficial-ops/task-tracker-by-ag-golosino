@@ -13,7 +13,7 @@
     {% if current_user.is_authenticated %}
     <nav class="sidebar" id="appSidebar">
         <div class="sidebar-header d-flex d-md-none justify-content-end w-100 p-2">
-            <button id="sidebarToggle" class="btn btn-sm btn-outline-light">✕</button>
+            <button id="sidebarToggle" class="btn btn-sm btn-outline-light" aria-label="Toggle Sidebar">✕</button>
         </div>
         <a href="{{ url_for('index') }}" title="Dashboard"><i>📊</i> <span class="side-text">Dashboard</span></a>
         <a href="{{ url_for('tasks') }}" title="Tasks"><i>📝</i> <span class="side-text">Tasks</span></a>
@@ -37,7 +37,7 @@
                     {% for category, message in messages %}
                         <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
                             {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     {% endfor %}
                 {% endif %}

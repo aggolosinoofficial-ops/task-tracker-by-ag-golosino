@@ -24,7 +24,7 @@ body {
 
   /* Text size adjustment */
   -webkit-text-size-adjust: 100%; /* Safari/iOS */
-  text-size-adjust: 100rem;         /* Chrome/Edge */
+  text-size-adjust: 100%;         /* Chrome/Edge */
   /* Firefox ignores this, so use rem/em units for scaling */
 }
 
@@ -131,16 +131,16 @@ body.dark-mode h1 {
     color: #222;
     border-radius: 15px;
     padding: 20px;
-
-#loading {
-    display: none;
-}
     border: 1px solid rgba(0,0,0,0.05);
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     overflow: hidden;
+}
+
+#loading {
+    display: none;
 }
 
 .summary-card:hover {

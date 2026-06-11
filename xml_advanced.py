@@ -15,16 +15,24 @@ class AdvancedXMLHandler:
     
     def __init__(self, xml_file="tasks.xml", xsd_file="tasks.xsd"):
         """Initialize handler"""
-        self.xml_file = xml_file
-        self.xsd_file = xsd_file
-        self.base_path = Path(__file__).parent
-        self.xml_path = self.base_path / xml_file
-        self.xsd_path = self.base_path / xsd_file
+        self.base_path = Path(__file__).parent # Directory where xml_advanced.py resides
+        self.data_dir = self.base_path / 'data'
+        self.schema_dir = self.base_path / 'schema'
+
+        self.xml_file_name = xml_file # Store just the name for reference
+        self.xsd_file_name = xsd_file # Store just the name for reference
+
+        self.xml_path = self.data_dir / xml_file # Full path to XML data file
+        self.xsd_path = self.schema_dir / xsd_file # Full path to XSD schema file
+
         self.tree = None
         self.root = None
         self.namespaces = {
             'xs': 'http://www.w3.org/2001/XMLSchema'
         }
+        # Ensure data and schema directories exist
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.schema_dir.mkdir(parents=True, exist_ok=True)
     
     # ==================== BASIC XML OPERATIONS ====================
     
@@ -212,6 +220,46 @@ class AdvancedXMLHandler:
     
     # ==================== CRUD OPERATIONS ====================
     
+    def validate_task_data(self, task_data: Dict[str, Any]) -> bool:
+        """
+        Validates a task dictionary against the XSD schema before insertion.
+        """
+        try:
+            from lxml import etree
+            
+            # Create a dummy root to satisfy the schema structure
+            root = etree.Element("tasks")
+            task = etree.SubElement(root, "task")
+            
+            # Map dict keys to XML elements
+            for key, value in task_data.items():
+                child = etree.SubElement(task, key)
+                child.text = str(value) if value is not None else ""
+
+            # Load schema
+            if not self.xsd_path.exists():
+                print(f"⚠️ Validation skipped: {self.xsd_path} missing.")
+                return True # Fail-safe if XSD is missing during dev
+                
+            schema_root = etree.parse(str(self.xsd_path))
+            schema = etree.XMLSchema(schema_root)
+            
+            # Validate
+            if schema.validate(root):
+                return True
+            else:
+                print("❌ Task Data Validation Errors:")
+                for error in schema.error_log:
+                    print(f"  - {error.message}")
+                return False
+                
+        except ImportError:
+            print("⚠️ lxml not installed. Skipping XSD structural check.")
+            return True
+        except Exception as e:
+            print(f"❌ Validation Logic Error: {e}")
+            return False
+
     def create_task(self, task_data: Dict[str, Any]) -> bool:
         """Create new task element"""
         try:
@@ -225,19 +273,30 @@ class AdvancedXMLHandler:
                 except (ValueError, TypeError):
                     pass
             
+            # Pre-validation step
+            task_id = task_data.get('id', max_id + 1)
+            task_data['id'] = task_id # Ensure ID is present for validation
+            task_data['priority'] = task_data.get('priority', 'Medium')
+            task_data['due_date'] = task_data.get('due_date', '') # Ensure due_date is present for validation and XML creation
+            
+            if not self.validate_task_data(task_data):
+                return False
+
             # Create task element
             task_elem = ET.Element('task')
             
             # Add fields
-            ET.SubElement(task_elem, 'id').text = str(task_data.get('id', max_id + 1))
+            ET.SubElement(task_elem, 'id').text = str(task_data['id'])
             ET.SubElement(task_elem, 'user_id').text = str(task_data.get('user_id', 1))
             ET.SubElement(task_elem, 'title').text = task_data.get('title', 'Untitled')
             ET.SubElement(task_elem, 'description').text = task_data.get('description', '')
             ET.SubElement(task_elem, 'status').text = task_data.get('status', 'pending')
             ET.SubElement(task_elem, 'created_at').text = task_data.get('created_at', datetime.now().isoformat())
+            ET.SubElement(task_elem, 'priority').text = task_data['priority']
+            ET.SubElement(task_elem, 'due_date').text = task_data['due_date']
             
             self.root.append(task_elem)
-            print(f"✓ Task created with ID {task_data.get('id', max_id + 1)}")
+            print(f"✓ Task created with ID {task_data['id']}")
             return True
             
         except Exception as e:
@@ -268,7 +327,20 @@ class AdvancedXMLHandler:
             print(f"❌ Task {task_id} not found")
             return False
         
+        # Create a full representation of the task for validation
+        # Start with existing values
+        task_data = {child.tag: child.text for child in task_elem}
+        # Merge with proposed updates
+        task_data.update(updates)
+        task_data['id'] = task_id  # Ensure the ID remains consistent
+
+        # Validate the proposed state against the XSD
+        if not self.validate_task_data(task_data):
+            print(f"❌ Update aborted: Validation failed for Task {task_id}")
+            return False
+
         try:
+            # If valid, apply changes to the actual XML tree
             for field, value in updates.items():
                 elem = task_elem.find(field)
                 if elem is not None:
@@ -276,8 +348,8 @@ class AdvancedXMLHandler:
                 else:
                     ET.SubElement(task_elem, field).text = str(value)
             
-            print(f"✓ Task {task_id} updated")
-            return True
+            # Persist changes to the file
+            return self.save_xml()
             
         except Exception as e:
             print(f"❌ Error updating task: {e}")

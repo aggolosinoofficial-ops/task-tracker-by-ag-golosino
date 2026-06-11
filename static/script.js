@@ -176,8 +176,7 @@ function loadTasks(page = 1) {
             }
             
             state.isLoading = false;
-            // Trigger count update and animations after new tasks are rendered
-            document.dispatchEvent(new CustomEvent('taskUpdated'));
+            if (tasks.length > 0) updateDashboardSummary();
         })
         .catch(error => {
             if (loading) loading.style.display = 'none';
@@ -185,6 +184,37 @@ function loadTasks(page = 1) {
             showNotification('✗ Network error: Could not load tasks', 'error');
             state.isLoading = false;
         });
+}
+
+function animateValue(id, start, end, duration) {
+    const obj = document.getElementById(id);
+    if (!obj) return;
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        obj.innerHTML = Math.floor(progress * (end - start) + start);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    obj.classList.add('count-glow');
+    window.requestAnimationFrame(step);
+    setTimeout(() => obj.classList.remove('count-glow'), duration);
+}
+
+function updateDashboardSummary() {
+    const tasks = document.querySelectorAll('.task-card');
+    const stats = { total: 0, completed: 0, pending: 0, archived: 0 };
+    tasks.forEach(t => {
+        const s = t.dataset.status;
+        if (stats[s] !== undefined) stats[s]++;
+        if (s !== 'archived') stats.total++;
+    });
+    animateValue('total-count', 0, stats.total, 1000);
+    animateValue('completed-count', 0, stats.completed, 1000);
+    animateValue('pending-count', 0, stats.pending, 1000);
+    animateValue('archived-count', 0, stats.archived, 1000);
 }
 
 function createTaskElement(task) {
@@ -217,6 +247,7 @@ function createTaskElement(task) {
     
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
+    toggleBtn.className = 'btn-complete';
     toggleBtn.textContent = task.status === 'completed' ? 'Mark Pending' : 'Mark Complete';
     toggleBtn.dataset.action = 'toggle';
     toggleBtn.dataset.taskId = task.id;
@@ -224,12 +255,14 @@ function createTaskElement(task) {
     
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
+    editBtn.className = 'btn-edit';
     editBtn.textContent = 'Edit';
     editBtn.dataset.action = 'edit';
     editBtn.dataset.taskId = task.id;
     
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
+    deleteBtn.className = 'btn-delete';
     deleteBtn.textContent = 'Delete';
     deleteBtn.dataset.action = 'delete';
     deleteBtn.dataset.taskId = task.id;
@@ -431,8 +464,26 @@ function deleteTask(id) {
     });
 }
 
+function initializeTheme() {
+    const toggle = document.getElementById('darkModeToggle');
+    const isDark = localStorage.getItem('theme') === 'dark';
+    
+    if (isDark) document.body.classList.add('dark-mode');
+
+    toggle?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const wasDark = document.body.classList.toggle('dark-mode');
+        localStorage.setItem('theme', wasDark ? 'dark' : 'light');
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
     initializeTaskListHandlers();
     initializeTaskForm(); 
-    loadTasks(1);         
+    
+    // Only load tasks if we are on a page with a task list
+    if (document.getElementById('taskList')) {
+        loadTasks(1);
+    }
 });

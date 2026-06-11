@@ -1,30 +1,35 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" ?>
 <users>
   <user id="1">
+    <id>1</id>
     <username>admin123</username>
     <password_hash>$2y$10$DIsG67LtQ.eJ6hoZ8HA4VuiiSHtDK1E0zqZ.MTKIdKYnrOE1J8QvC</password_hash>
     <role>admin</role>
     <created_at>2026-05-15T12:30:12</created_at>
   </user>
   <user id="2">
+    <id>2</id>
     <username>atheena303</username>
     <password_hash>$2y$10$Niw0yozCfRKLLFs7sQ59TuLmei9X8JU9rsALfTeCV8HymvMywiNNy</password_hash>
     <role>user</role>
     <created_at>2026-05-15T12:35:31</created_at>
   </user>
   <user id="3">
+    <id>3</id>
     <username>user1</username>
     <password_hash>$2y$10$fL8qttv2AYtGzsBiFFlSbedwGViQadPlx8sTPRyjKs5qFK/0nRH0.</password_hash>
     <role>user</role>
     <created_at>2026-06-05T08:36:05</created_at>
   </user>
   <user id="4">
+    <id>4</id>
     <username>user2</username>
     <password_hash>$2y$10$kpOVfc4anH9v13SRHRL.3OauhtVOLRnlwy0FDi/ECb2/7oJZ0WQmy</password_hash>
     <role>user</role>
     <created_at>2026-06-05T08:38:09</created_at>
   </user>
   <user id="5">
+    <id>5</id>
     <username>angelo</username>
     <password_hash>$2y$10$e2TbI3URowwHUJTz06qrUeN4Y2aSe92nvsMO1lI.YdtXuqc6nsScK</password_hash>
     <role>user</role>

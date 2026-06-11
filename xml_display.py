@@ -15,11 +15,17 @@ class XMLDisplay:
     
     def __init__(self, xml_file="tasks.xml", xsd_file="tasks.xsd"):
         """Initialize with XML and XSD file paths"""
+        self.base_path = Path(__file__).parent
+        # Use absolute paths based on where the script is located
+        self.data_dir = self.base_path.absolute() / 'data'
+        self.schema_dir = self.base_path.absolute() / 'schema'
+
         self.xml_file = xml_file
         self.xsd_file = xsd_file
-        self.base_path = Path(__file__).parent
-        self.xml_path = self.base_path / xml_file
-        self.xsd_path = self.base_path / xsd_file
+
+        self.xml_path = self.data_dir / xml_file
+        self.xsd_path = self.schema_dir / xsd_file
+        
         self.tree = None
         self.root = None
         
@@ -95,7 +101,7 @@ class XMLDisplay:
     
     def display_xml_structure(self):
         """Display XML structure and metadata"""
-        if not self.root:
+        if self.root is None:
             return
         
         print(f"\n{'='*60}")
@@ -113,7 +119,7 @@ class XMLDisplay:
     
     def display_tasks_table(self):
         """Display tasks in table format"""
-        if not self.root:
+        if self.root is None:
             return
         
         tasks = self.root.findall('task')
@@ -228,7 +234,7 @@ class XMLDisplay:
     
     def get_task_statistics(self):
         """Display task statistics"""
-        if not self.root:
+        if self.root is None:
             return
         
         tasks = self.root.findall('task')

@@ -14,8 +14,8 @@ class TaskService:
         
         # Phase 3: Streaming parsing for memory efficiency
         for task_el in self.xml.iter_all(self.filename, 'task'):
-            if user_id:
-                if task_el.findtext('created_by') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+            if user_id is not None:
+                if task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
                     continue
             
             if count < offset:
@@ -35,14 +35,15 @@ class TaskService:
         root = tree.getroot()
         
         task_id = self.xml.get_next_id(self.filename, "task")
-        new_task = etree.SubElement(root, "task", id=task_id)
+        new_task = etree.SubElement(root, "task")
         
         fields = {
+            'id': task_id,
             'title': data['title'],
             'description': data.get('description', ''),
             'priority': data.get('priority', 'Medium'),
             'status': 'pending',
-            'created_by': str(data['created_by']),
+            'user_id': str(data['created_by']),
             'assigned_to': str(data.get('assigned_to', data['created_by'])),
             'created_at': datetime.now().isoformat(),
             'due_date': data.get('due_date', ''),
@@ -60,28 +61,28 @@ class TaskService:
         tasks = []
         # Using streaming iterator for efficiency
         for task_el in self.xml.iter_all("archive_tasks", 'task'):
-            if user_id and task_el.findtext('created_by') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+            if user_id and task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
                 continue
             tasks.append(self._element_to_dict(task_el))
         return tasks
 
     def get_task_by_id(self, task_id, user_id=None):
-        xpath = "//task[@id=$tid]"
+        xpath = "//task[id=$tid]"
         if user_id:
-            xpath += "[created_by=$uid or assigned_to=$uid]"
+            xpath += "[user_id=$uid or assigned_to=$uid]"
         
         nodes = self.xml.find_all(self.filename, xpath, tid=task_id, uid=str(user_id))
         return self._element_to_dict(nodes[0]) if nodes else None
 
     def update_task(self, task_id, data, user_id, is_admin=False):
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[@id=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//task[id=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
-        if not is_admin and task.findtext('created_by') != str(user_id) and task.findtext('assigned_to') != str(user_id):
+        if not is_admin and task.findtext('user_id') != str(user_id) and task.findtext('assigned_to') != str(user_id):
             return False, "Unauthorized."
 
         for key, value in data.items():
@@ -101,14 +102,14 @@ class TaskService:
     def delete_task(self, task_id, user_id, is_admin=False):
         """Permanent deletion of a task."""
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[@id=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//task[id=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
         # Only admin or creator can hard delete
-        if not is_admin and task.findtext('created_by') != str(user_id) and task.findtext('assigned_to') != str(user_id):
+        if not is_admin and task.findtext('user_id') != str(user_id) and task.findtext('assigned_to') != str(user_id):
             return False, "Unauthorized."
             
         task.getparent().remove(task)
@@ -140,6 +141,13 @@ class TaskService:
                         daily_data[date_key] += 1
                 except (ValueError, TypeError): continue
 
+        # Calculate priorities correctly
+        priorities = {
+            'High': len([t for t in tasks if t.get('priority') == 'High']),
+            'Medium': len([t for t in tasks if t.get('priority', 'Medium') == 'Medium']),
+            'Low': len([t for t in tasks if t.get('priority') == 'Low'])
+        }
+
         total_active = len(tasks)
         completed = len([t for t in tasks if t['status'] == 'completed'])
         completion_rate = round((completed / total_active * 100), 1) if total_active > 0 else 0
@@ -157,7 +165,8 @@ class TaskService:
             'total': total_active,
             'completed': completed,
             'pending': len([t for t in tasks if t['status'] == 'pending']),
-            'high_priority': len([t for t in tasks if t['priority'] == 'High']),
+            'high_priority': priorities['High'],
+            'priorities': priorities,
             'archived': len(archived),
             'daily_data': daily_data,
             'completion_rate': completion_rate,
@@ -170,7 +179,7 @@ class TaskService:
         # Optimization: Use streaming for search to remain memory efficient
         for task_el in self.xml.iter_all(self.filename, 'task'):
             if user_id:
-                if task_el.findtext('created_by') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+                if task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
                     continue
             
             t = self._element_to_dict(task_el)
@@ -184,7 +193,7 @@ class TaskService:
         return filtered
 
     def _element_to_dict(self, el):
-        data = {'id': el.get('id')}
+        data = {}
         for child in el:
             data[child.tag] = child.text
         return data

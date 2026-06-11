@@ -274,6 +274,7 @@ def get_insights_data():
         'pending': stats['pending'],
         'completed': stats['completed'],
         'archived': stats['archived'],
+        'priorities': stats['priorities'],
         'total_all_time': stats['total'] + stats['archived'],
         'completion_rate': stats['completion_rate'],
         'avg_per_day': stats['avg_per_day'],

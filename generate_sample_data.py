@@ -15,8 +15,10 @@ class SampleDataGenerator:
     def __init__(self, xml_file="tasks.xml"):
         """Initialize generator"""
         self.xml_file = xml_file
-        self.base_path = Path(__file__).parent
-        self.xml_path = self.base_path / xml_file
+        self.base_path = Path(__file__).parent # Directory where generate_sample_data.py resides
+        self.data_dir = self.base_path / 'data'
+        self.data_dir.mkdir(parents=True, exist_ok=True) # Ensure data directory exists
+        self.xml_path = self.data_dir / xml_file
     
     def generate_tasks(self, num_tasks=15):
         """Generate sample tasks"""

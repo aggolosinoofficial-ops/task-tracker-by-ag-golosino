@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='task.css') }}">
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">All Tasks</h2>
@@ -13,15 +14,15 @@
     <div id="notificationContainer"></div>
     
     <!-- Required for loading state in script.js -->
-    <div id="loading" class="text-center my-5" style="display: none;">
+    <div id="loading" class="text-center my-5">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading tasks...</span>
         </div>
     </div>
 
     <!-- Required for dynamic task injection -->
-    <div id="taskList" class="cards-container"></div>
+    <div class="task-list-wrapper">
+        <div id="taskList" class="cards-container"></div>
+    </div>
 </div>
-
-<script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}

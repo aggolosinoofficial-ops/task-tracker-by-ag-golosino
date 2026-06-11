@@ -15,9 +15,9 @@ class SampleDataGenerator:
     def __init__(self, xml_file="tasks.xml"):
         """Initialize generator"""
         self.xml_file = xml_file
-        self.base_path = Path(__file__).parent # Directory where generate_sample_data.py resides
+        self.base_path = Path(__file__).parent  # Directory where generate_sample_data.py resides
         self.data_dir = self.base_path / 'data'
-        self.data_dir.mkdir(parents=True, exist_ok=True) # Ensure data directory exists
+        self.data_dir.mkdir(parents=True, exist_ok=True)  # Ensure data directory exists
         self.xml_path = self.data_dir / xml_file
     
     def generate_tasks(self, num_tasks=15):
@@ -60,7 +60,8 @@ class SampleDataGenerator:
             "Run security scan on codebase"
         ]
         
-        statuses = ["pending", "completed", "in_progress", "cancelled"]
+        statuses = ["pending", "completed", "in_progress", "archived"]  # ✅ match XSD
+        priorities = ["Low", "Medium", "High"]
         user_ids = [1, 2, 3, 4, 5]
         
         # Create root element
@@ -82,7 +83,16 @@ class SampleDataGenerator:
             
             # Vary creation dates
             task_date = base_date + timedelta(days=random.randint(0, 30))
-            ET.SubElement(task, 'created_at').text = task_date.isoformat()
+            ET.SubElement(task, 'created_at').text = task_date.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Optional priority
+            if random.random() > 0.3:  # 70% chance to include
+                ET.SubElement(task, 'priority').text = random.choice(priorities)
+            
+            # Optional due_date
+            if random.random() > 0.5:  # 50% chance to include
+                due_date = task_date + timedelta(days=random.randint(1, 14))
+                ET.SubElement(task, 'due_date').text = due_date.strftime("%Y-%m-%d")
         
         return root
     
@@ -108,18 +118,13 @@ class SampleDataGenerator:
     def _indent(elem, level=0):
         """Pretty print XML"""
         indent = "\n" + level * "  "
-        
         if len(elem):
             if not elem.text or not elem.text.strip():
                 elem.text = indent + "  "
-            if not elem.tail or not elem.tail.strip():
-                elem.tail = indent
-            
             for child in elem:
                 SampleDataGenerator._indent(child, level + 1)
-            
-            if not child.tail or not child.tail.strip():
-                child.tail = indent
+            if not elem[-1].tail or not elem[-1].tail.strip():
+                elem[-1].tail = indent
         else:
             if level and (not elem.tail or not elem.tail.strip()):
                 elem.tail = indent

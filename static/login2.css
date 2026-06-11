@@ -15,11 +15,17 @@
 
 h1 {
     text-align: center;
-    color: #2d3748;
+    color: #3f25c1;
     margin-bottom: 8px;
     font-size: 32px;
     font-weight: 700;
 }
+
+.auth-title {
+  color: #3427aa;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 
 .subtitle {
     text-align: center;

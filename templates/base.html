@@ -6,14 +6,14 @@
     <title>Task Tracker</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}?v=1.1">
 </head>
 <body>
     {% if current_user.is_authenticated %}
     <nav class="sidebar" id="appSidebar">
         <div class="sidebar-header d-flex d-md-none justify-content-end w-100 p-2">
-            <button id="sidebarToggle" class="btn btn-sm btn-outline-light" aria-label="Toggle Sidebar">✕</button>
+            <button type="button" id="sidebarToggle" class="btn btn-sm btn-outline-light" aria-label="Toggle Sidebar">✕</button>
         </div>
         <a href="{{ url_for('index') }}" title="Dashboard"><i>📊</i> <span class="side-text">Dashboard</span></a>
         <a href="{{ url_for('tasks') }}" title="Tasks"><i>📝</i> <span class="side-text">Tasks</span></a>
@@ -49,6 +49,46 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
+        // Global Fetch Interceptor to fix AJAX connectivity
+        const { fetch: originalFetch } = window;
+        window.fetch = async (...args) => {
+            let [resource, config] = args;
+            config = config || {};
+            
+            let headers = config.headers;
+            const isJsonBody = config.body && (typeof config.body === 'string' || config.body instanceof String);
+            const method = config.method ? config.method.toUpperCase() : 'GET';
+
+            if (headers instanceof Headers) {
+                headers.set('X-Requested-With', 'XMLHttpRequest');
+                if (isJsonBody && !headers.has('Content-Type')) {
+                    headers.set('Content-Type', 'application/json');
+                }
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                    headers.set('X-CSRFToken', csrfToken);
+                }
+            } else {
+                headers = headers || {};
+                headers['X-Requested-With'] = 'XMLHttpRequest';
+                if (isJsonBody && !headers['Content-Type']) {
+                    headers['Content-Type'] = 'application/json';
+                }
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                    headers['X-CSRFToken'] = csrfToken;
+                }
+                config.headers = headers;
+            }
+            
+            try {
+                return await originalFetch(resource, config);
+            } catch (error) {
+                console.error('Fetch error:', error);
+                throw error;
+            }
+        };
+
         const sidebarToggle = document.getElementById('sidebarToggle');
         if (sidebarToggle) {
             sidebarToggle.addEventListener('click', function() {

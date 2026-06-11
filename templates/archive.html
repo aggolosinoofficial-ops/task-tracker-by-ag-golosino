@@ -38,14 +38,4 @@
         {% endif %}
     </div>
 </div>
-
-<script src="{{ url_for('static', filename='script.js') }}"></script>
-<script>
-    // Manually initialize the click handler for the archive list 
-    // because loadTasks() only targets #taskList
-    const archiveList = document.getElementById('archiveList');
-    if (archiveList) {
-        archiveList.addEventListener('click', handleTaskListClick);
-    }
-</script>
 {% endblock %}

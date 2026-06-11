@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='register2.css') }}">
 
     <div class="container">
-        <h1>Create Account</h1>
+        <h1 class="auth-title">Create Account</h1>
         <p class="subtitle">Join Task Tracker Today</p>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}

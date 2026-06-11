@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<!-- Reuse register styling for a unified background -->
 <link rel="stylesheet" href="{{ url_for('static', filename='register2.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='login2.css') }}">
 
     <div class="container">
-        <h1>Login</h1>
         <h1 class="auth-title">Welcome Back</h1>
         <p class="subtitle">Welcome back to Task Tracker</p>
         {% with messages = get_flashed_messages(with_categories=true) %}

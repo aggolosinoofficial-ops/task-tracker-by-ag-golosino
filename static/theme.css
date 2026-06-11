@@ -1,5 +1,14 @@
+/* Auth Pages Title Readability */
+.auth-title {
+    color: #5a52a5 !important;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-shadow: 0 2px 10px rgba(255, 255, 255, 0.8);
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
 /* Task Card & Summary Card Gradient Skin */
-.task-card, .summary-card {
 .task-card, .summary-card, .stat-card {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 245, 255, 0.9));
     border: none;
@@ -10,12 +19,14 @@
 body:not(.dark-mode) .task-card {
     background: linear-gradient(135deg, #ffffff 0%, #f9f0ff 100%);
     border-left: 5px solid #a29bfe;
-    color: #444; /* High contrast for readability */
+    color: #2d3436; /* High contrast for readability */
 }
 
 body:not(.dark-mode) .task-card .card-title, 
-body:not(.dark-mode) .stat-card h3 {
+body:not(.dark-mode) .stat-card h3,
+body:not(.dark-mode) .task-card strong {
     color: #5a52a5; /* Deep purple for readability on pastel */
+    font-weight: 700;
 }
 
 body:not(.dark-mode) .btn-edit {
@@ -41,7 +52,6 @@ body:not(.dark-mode) .stat-card {
 }
 
 /* Dark Mode Neon Gradients */
-body.dark-mode .task-card {
 body.dark-mode .task-card, body.dark-mode .stat-card {
     background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
     border: 1px solid rgba(0, 255, 255, 0.3);
@@ -92,9 +102,7 @@ body.dark-mode .card-actions button:hover {
 }
 
 @keyframes neon-glow {
-    0%   { box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff; }
-    25%  { box-shadow: 0 0 5px #39ff14, 0 0 10px #39ff14; }
-    50%  { box-shadow: 0 0 5px #ff073a, 0 0 10px #ff073a; }
-    75%  { box-shadow: 0 0 5px #ffea00, 0 0 10px #ffea00; }
-    100% { box-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff; }
+    0%   { opacity: 0.8; filter: drop-shadow(0 0 1px #00ffff); }
+    50%  { opacity: 1; filter: drop-shadow(0 0 3px #ff00ff); }
+    100% { opacity: 0.8; filter: drop-shadow(0 0 1px #00ffff); }
 }

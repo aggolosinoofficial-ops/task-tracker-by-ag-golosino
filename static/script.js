@@ -25,6 +25,12 @@ function initializeTaskListHandlers() {
         taskList.addEventListener('submit', handleTaskListSubmit);
         taskList._initialized = true;
     }
+
+    const archiveList = document.getElementById('archiveList');
+    if (archiveList && !archiveList._initialized) {
+        archiveList.addEventListener('click', handleTaskListClick);
+        archiveList._initialized = true;
+    }
 }
 
 function handleTaskListClick(event) {
@@ -215,6 +221,19 @@ function updateDashboardSummary() {
     animateValue('completed-count', 0, stats.completed, 1000);
     animateValue('pending-count', 0, stats.pending, 1000);
     animateValue('archived-count', 0, stats.archived, 1000);
+    // Fetch real stats from server instead of counting DOM elements (which breaks with pagination)
+    fetch('/api/insights', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(stats => {
+        if (!stats) return;
+        animateValue('total-count', 0, stats.total_active || 0, 1000);
+        animateValue('completed-count', 0, stats.completed || 0, 1000);
+        animateValue('pending-count', 0, stats.pending || 0, 1000);
+        animateValue('archived-count', 0, stats.archived || 0, 1000);
+    })
+    .catch(err => console.error('Could not update dashboard summary:', err));
 }
 
 function createTaskElement(task) {
@@ -336,30 +355,28 @@ function createPaginationControls(pagination, container) {
 function addTask() {
     const title = document.getElementById('title').value.trim();
     const description = document.getElementById('description').value.trim();
+    const dueDateEl = document.getElementById('due_date');
+    const due_date = dueDateEl ? dueDateEl.value : '';
+    
     // Support both 'category' and 'priority' IDs to be safe
-    const priorityEl = document.getElementById('priority') || document.getElementById('category');
-    const priority = priorityEl ? priorityEl.value.trim() : 'Medium';
-    const csrfToken = document.getElementById('csrf_token')?.value || '';
-
     if (!title) {
         showNotification('Task title is required', 'error');
         return;
     }
     
+    const priorityEl = document.getElementById('priority') || document.getElementById('category');
+    const priority = priorityEl ? priorityEl.value.trim() : 'Medium';
+
     const submitBtn = document.querySelector('#taskForm button[type="submit"]');
-    submitBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
 
     fetch('/add_task', {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: `title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&priority=${encodeURIComponent(priority)}&csrf_token=${encodeURIComponent(csrfToken)}`
+        body: JSON.stringify({ title, description, priority, due_date })
     })
     .then(r => r.json())
     .then(result => {
-        submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
         if (result.success) {
             showNotification('✓ Task saved!', 'success');
             document.getElementById('taskForm').reset();
@@ -369,9 +386,35 @@ function addTask() {
         }
     })
     .catch(() => {
-        submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
         showNotification('✗ Network error.', 'error');
     });
+}
+
+function quickAddTask() {
+    const input = document.getElementById('taskInput');
+    if (!input) return;
+    const title = input.value.trim();
+    if (!title) {
+        showNotification('Please enter a task title', 'error');
+        return;
+    }
+    
+    fetch('/add_task', {
+        method: 'POST',
+        body: JSON.stringify({ title, description: '', priority: 'Medium' })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            input.value = '';
+            showNotification('✓ Task added!', 'success');
+            if (document.getElementById('taskList')) loadTasks(1);
+        } else {
+            showNotification('✗ ' + result.error, 'error');
+        }
+    })
+    .catch(() => showNotification('✗ Network error', 'error'));
 }
 
 function fetchJsonSafe(url, options = {}) {
@@ -394,33 +437,32 @@ async function getCsrfTokenOrThrow() {
 
 function toggleTask(id, currentStatus) {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-    getCsrfTokenOrThrow().then(csrf => {
-        return fetchJsonSafe(`/edit_task/${id}`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `id=${id}&status=${newStatus}&csrf_token=${csrf}`
-        });
+    const confirmMessage = newStatus === 'completed' 
+        ? 'Are you sure you want to mark this task as complete?' 
+        : 'Are you sure you want to mark this task as pending?';
+
+    if (!confirm(confirmMessage)) return; 
+
+    fetchJsonSafe(`/edit_task/${id}`, {
+        method: 'POST',
+        body: JSON.stringify({ status: newStatus })
     }).then(res => {
         if (res.success) {
             showNotification('✓ Updated!', 'success');
             loadTasks();
             document.dispatchEvent(new CustomEvent('taskUpdated'));
+        } else {
+            showNotification('✗ Error: ' + (res.error || 'Failed to update status'), 'error');
         }
     });
 }
 
 function restoreTask(id) {
-    getCsrfTokenOrThrow()
-        .then(csrfToken => {
-            return fetch(`/restore_task/${id}`).then(r => r.redirected ? {success: true} : r.json());
-        })
+    fetchJsonSafe(`/restore_task/${id}`, { method: 'POST' })
         .then(result => {
             if (result && result.success) {
                 showNotification('✓ Task restored!', 'success');
-                loadTasks();
+                location.reload(); 
                 document.dispatchEvent(new CustomEvent('taskUpdated'));
             } else {
                 showNotification('✗ Error: ' + (result.error || 'Failed to restore'), 'error');
@@ -444,35 +486,33 @@ function saveEdit(id) {
     const form = document.getElementById(`editForm${id}`);
     const title = form.querySelector('input').value.trim();
     const description = form.querySelector('textarea').value.trim();
-    getCsrfTokenOrThrow().then(csrf => {
-        return fetchJsonSafe(`/edit_task/${id}`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `id=${id}&title=${title}&description=${description}&csrf_token=${csrf}`
-        });
+    fetchJsonSafe(`/edit_task/${id}`, {
+        method: 'POST',
+        body: JSON.stringify({ title, description })
     }).then(res => {
         if (res.success) {
             showNotification('✓ Updated!', 'success');
             hideEditForm(id);
             loadTasks();
+        } else {
+            showNotification('✗ Error: ' + (res.error || 'Failed to save changes'), 'error');
         }
     });
 }
 
 function deleteTask(id) {
     if (!confirm('Archive this task?')) return;
-    getCsrfTokenOrThrow().then(csrf => {
-        return fetch(`/archive_task/${id}`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        }).then(r => r.json());
-    }).then(res => {
+    fetch(`/archive_task/${id}`, {
+        method: 'POST'
+    })
+    .then(r => r.json())
+    .then(res => {
         if (res.success) {
             showNotification('✓ Archived!', 'success');
             loadTasks();
             document.dispatchEvent(new CustomEvent('taskUpdated'));
+        } else {
+            showNotification('✗ Error: ' + (res.error || 'Failed to archive task'), 'error');
         }
     });
 }

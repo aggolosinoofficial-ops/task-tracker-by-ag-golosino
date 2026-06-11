@@ -70,14 +70,15 @@ def login():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        data = request.get_json() if request.is_json else request.form
+        username = data.get('username')
+        password = data.get('password')
 
         # Always keep XHR login responses JSON (never Werkzeug HTML).
         try:
             user = auth_service.authenticate(username, password)
         except Exception as e:
-            print(f"[Login] Unhandled exception during authentication: {e}")
+            app.logger.error(f"[Login] Unhandled exception during authentication: {e}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': 'Login failed due to a server error'}), 500
             flash('Login failed due to a server error', 'error')
@@ -97,14 +98,16 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
+@csrf.exempt
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm = request.form.get('confirm_password')
+        data = request.get_json() if request.is_json else request.form
+        username = data.get('username')
+        password = data.get('password')
+        confirm = data.get('confirm_password')
         
         if password != confirm:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -127,8 +130,10 @@ def register():
     return render_template('register.html')
 
 @app.route('/api/check_username', methods=['POST'])
+@csrf.exempt
 def check_username():
-    username = request.form.get('username')
+    data = request.get_json() if request.is_json else request.form
+    username = data.get('username')
     exists = auth_service.username_exists(username)
     return jsonify({'available': not exists})
 
@@ -169,69 +174,73 @@ def archive_task_view():
 @app.route('/add_task', methods=['POST'])
 @login_required
 def add_task():
+    data = request.get_json() if request.is_json else request.form
     task_data = {
-        'title': request.form.get('title'),
-        'description': request.form.get('description'),
-        'priority': request.form.get('priority'),
-        'due_date': request.form.get('due_date'),
+        'title': data.get('title'),
+        'description': data.get('description'),
+        'priority': data.get('priority'),
+        'due_date': data.get('due_date'),
         'created_by': current_user.id,
-        'assigned_to': request.form.get('assigned_to', current_user.id)
+        'assigned_to': data.get('assigned_to', current_user.id)
     }
     
     success, message = task_service.create_task(task_data)
     if success:
         activity_service.log_activity(current_user.username, f"Task created: {task_data['title']}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+            return jsonify({'success': True}), 200
         flash('Task added successfully', 'success')
-    else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': message})
-        flash(message, 'error')
-    return redirect(url_for('tasks'))
+        return redirect(url_for('tasks'))
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': False, 'error': message}), 400
+    flash(message, 'error')
+    return redirect(url_for('add_task_view'))
 
 @app.route('/edit_task/<task_id>', methods=['POST'])
 @login_required
 def edit_task(task_id):
-    data = {
-        'title': request.form.get('title'),
-        'description': request.form.get('description'),
-        'priority': request.form.get('priority'),
-        'status': request.form.get('status')
-    }
-    success, msg = task_service.update_task(task_id, data, current_user.id, current_user.role == 'admin')
+    raw_data = request.get_json() if request.is_json else request.form
+    # Only include keys that are actually present in the request to allow partial updates
+    update_data = {}
+    for key in ['title', 'description', 'priority', 'status']:
+        if key in raw_data:
+            update_data[key] = raw_data.get(key)
+            
+    success, msg = task_service.update_task(task_id, update_data, current_user.id, current_user.role == 'admin')
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': success, 'error': msg if not success else None})
+        # Return 200 even on logic failure so AJAX .then() can handle the {success: false} object
+        return jsonify({'success': success, 'error': msg if not success else None}), 200
     flash(msg if not success else 'Task updated', 'success' if success else 'error')
     return redirect(url_for('tasks'))
 
-@app.route('/archive_task/<task_id>')
+@app.route('/archive_task/<task_id>', methods=['POST'])
 @login_required
 def archive_task(task_id):
     success, msg = archive_service.archive_task(task_id, current_user.id, current_user.role == 'admin')
     if success:
         activity_service.log_activity(current_user.username, f"Archived task {task_id}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+            return jsonify({'success': True}), 200
         flash('Task archived', 'success')
     else:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': msg})
+            return jsonify({'success': False, 'error': msg}), 400
         flash(msg, 'error')
     return redirect(url_for('tasks'))
 
-@app.route('/restore_task/<task_id>')
+@app.route('/restore_task/<task_id>', methods=['POST'])
 @login_required
 def restore_task(task_id):
     success, msg = archive_service.restore_task(task_id, current_user.id, current_user.role == 'admin')
     if success:
         activity_service.log_activity(current_user.username, f"Restored task {task_id}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+            return jsonify({'success': True}), 200
         flash('Task restored', 'success')
     else:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': msg})
+            return jsonify({'success': False, 'error': msg}), 400
         flash(msg, 'error')
     return redirect(url_for('tasks'))
 

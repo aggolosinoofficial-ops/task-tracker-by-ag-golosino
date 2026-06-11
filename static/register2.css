@@ -13,6 +13,10 @@ body {
     min-height: 100vh;
     padding: 20px;
 }
+.auth-title {
+  color: #5a52a5;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
 
 .container {
     background: white;
@@ -21,19 +25,21 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
     width: 100%;
     max-width: 420px;
+    
 }
 
 h1 {
     text-align: center;
-    color: #2d3748;
+    color: #3427aa;
     margin-bottom: 8px;
     font-size: 32px;
     font-weight: 700;
 }
 
+
 .subtitle {
     text-align: center;
-    color: #718096;
+   color: #5a52a5;
     margin-bottom: 32px;
     font-size: 15px;
 }

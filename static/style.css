@@ -21,11 +21,9 @@ body {
   background-color: var(--main-bg);
   color: #333;
   transition: background-color 0.3s ease, color 0.3s ease;
-
-  /* Text size adjustment */
-  -webkit-text-size-adjust: 100%; /* Safari/iOS */
-  text-size-adjust: 100%;         /* Chrome/Edge */
-  /* Firefox ignores this, so use rem/em units for scaling */
+    /* Compatibility: Print colors */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 
 

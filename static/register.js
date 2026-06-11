@@ -53,12 +53,10 @@ function checkUsernameAvailability(username) {
 
     // Debounce: Wait 500ms after user stops typing
     usernameCheckTimeout = setTimeout(() => {
-        const formData = new FormData();
-        formData.append('username', username);
-
         fetch('/api/check_username', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username })
         })
         .then(response => response.json())
         .then(data => {
@@ -129,7 +127,6 @@ function handleRegistrationSubmit(e) {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
-    const csrfToken = document.getElementById('csrf_token').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
 
     // 1. Username validation
@@ -160,18 +157,17 @@ function handleRegistrationSubmit(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Creating...';
 
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    formData.append('confirm_password', confirmPassword);
-    formData.append('csrf_token', csrfToken);
-
     fetch('/register', {
         method: 'POST',
         headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify({ 
+            username: username, 
+            password: password, 
+            confirm_password: confirmPassword 
+        })
     })
     .then(async response => {
         const text = await response.text();

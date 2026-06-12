@@ -98,6 +98,57 @@ class ArchiveService:
             
         return self.xml.save_safely(self.tasks_file, tasks_tree, task_id)
 
+    def bulk_restore_tasks(self, user_id, is_admin=False, task_ids=None):
+        """
+        Moves tasks back to tasks.xml. 
+        If task_ids is provided, restores only those. Otherwise, restores all for the user.
+        """
+        archive_tree = self.xml.get_element_tree(self.archive_file)
+        archive_root = archive_tree.getroot()
+        
+        tasks_tree = self.xml.get_element_tree(self.tasks_file)
+        tasks_root = tasks_tree.getroot()
+
+        # Build XPath for target tasks
+        if task_ids:
+            # Restore specific IDs
+            xpath = "//task[" + " or ".join([f"id='{tid}'" for tid in task_ids]) + "]"
+        else:
+            # Restore all
+            xpath = "//task"
+            
+        variables = {}
+        if not is_admin:
+            xpath += "[user_id=$uid or assigned_to=$uid]"
+            variables['uid'] = str(user_id)
+            
+        nodes = archive_root.xpath(xpath, **variables)
+        if not nodes:
+            return True, "No tasks found to restore."
+            
+        restored_count = 0
+        for node in nodes:
+            restored_node = copy.deepcopy(node)
+            
+            # Remove archive-specific metadata
+            arch_ts = restored_node.find('archived_at')
+            if arch_ts is not None:
+                restored_node.remove(arch_ts)
+
+            tasks_root.append(restored_node)
+            archive_root.remove(node)
+            restored_count += 1
+            
+        if restored_count == 0:
+            return False, "No tasks were restored."
+
+        # Save state atomically
+        success, msg = self.xml.save_safely(self.archive_file, archive_tree)
+        if not success:
+            return False, msg
+            
+        return self.xml.save_safely(self.tasks_file, tasks_tree)
+
     def _element_to_dict(self, el):
         data = {}
         for child in el:

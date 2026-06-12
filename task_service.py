@@ -39,13 +39,13 @@ class TaskService:
         
         fields = {
             'id': task_id,
-            'title': data['title'],
-            'description': data.get('description', ''),
-            'priority': data.get('priority', 'Medium'),
-            'status': 'pending',
             'user_id': str(data['created_by']),
             'assigned_to': str(data.get('assigned_to', data['created_by'])),
+            'title': data['title'],
+            'description': data.get('description', ''),
+            'status': 'pending',
             'created_at': datetime.now().isoformat(),
+            'priority': data.get('priority', 'Medium'),
             'due_date': data.get('due_date', ''),
             'last_updated': datetime.now().isoformat()
         }
@@ -85,19 +85,18 @@ class TaskService:
         if not is_admin and task.findtext('user_id') != str(user_id) and task.findtext('assigned_to') != str(user_id):
             return False, "Unauthorized."
 
+        # Smooth Update: Just update/add tags. 
+        # XMLService.save_safely now handles the XSD ordering via XSLT automatically.
         for key, value in data.items():
-            if value is None: continue
-            node = task.find(key)
-            if node is not None:
+            if value is not None:
+                node = task.find(key)
+                if node is None: node = etree.SubElement(task, key)
                 node.text = str(value)
-            else:
-                # Create the element if it doesn't exist to prevent missing data
-                etree.SubElement(task, key).text = str(value)
         
         last_updated = task.find('last_updated')
-        if last_updated is None:
-            last_updated = etree.SubElement(task, 'last_updated')
+        if last_updated is None: last_updated = etree.SubElement(task, 'last_updated')
         last_updated.text = datetime.now().isoformat()
+
         return self.xml.save_safely(self.filename, tree, task_id)
 
     def update_task_status(self, task_id, status, user_id, is_admin=False):
@@ -118,6 +117,53 @@ class TaskService:
             
         task.getparent().remove(task)
         return self.xml.save_safely(self.filename, tree, task_id)
+
+    def bulk_delete_tasks(self, status, user_id, is_admin=False):
+        """Deletes all tasks matching a status for a specific user using a single XPath selection."""
+        tree = self.xml.get_element_tree(self.filename)
+        
+        # Build an optimized XPath to select the entire set of nodes at once
+        xpath = "//task[status=$s]"
+        variables = {'s': status}
+        
+        if not is_admin:
+            xpath += "[user_id=$uid or assigned_to=$uid]"
+            variables['uid'] = str(user_id)
+            
+        for task in tree.xpath(xpath, **variables):
+            task.getparent().remove(task)
+            
+        return self.xml.save_safely(self.filename, tree)
+
+    def bulk_update_status(self, current_status, new_status, user_id, is_admin=False):
+        """Updates multiple tasks from one status to another using a single XPath selection."""
+        tree = self.xml.get_element_tree(self.filename)
+        
+        # Select the target set of nodes
+        xpath = "//task[status=$cs]"
+        variables = {'cs': current_status}
+        
+        if not is_admin:
+            xpath += "[user_id=$uid or assigned_to=$uid]"
+            variables['uid'] = str(user_id)
+            
+        nodes = tree.xpath(xpath, **variables)
+        if not nodes:
+            return True, "No tasks found to update."
+            
+        now_ts = datetime.now().isoformat()
+        for node in nodes:
+            status_node = node.find('status')
+            if status_node is not None:
+                status_node.text = new_status
+            
+            # Ensure last_updated is refreshed
+            last_updated = node.find('last_updated')
+            if last_updated is None:
+                last_updated = etree.SubElement(node, 'last_updated')
+            last_updated.text = now_ts
+            
+        return self.xml.save_safely(self.filename, tree)
 
     def get_dashboard_stats(self, user_id):
         tasks = self.get_all_tasks(user_id)
@@ -143,12 +189,13 @@ class TaskService:
                     date_key = created_at_str.split('T')[0] if 'T' in created_at_str else created_at_str
                     if date_key in daily_data:
                         daily_data[date_key] += 1
-                except (ValueError, TypeError): continue
+                except (ValueError, TypeError, AttributeError): continue
 
         # Calculate priorities correctly
+        # Handle cases where priority might be None or empty string by defaulting to Medium
         priorities = {
             'High': len([t for t in tasks if t.get('priority') == 'High']),
-            'Medium': len([t for t in tasks if t.get('priority', 'Medium') == 'Medium']),
+            'Medium': len([t for t in tasks if t.get('priority') in [None, '', 'Medium']]),
             'Low': len([t for t in tasks if t.get('priority') == 'Low'])
         }
 
@@ -183,11 +230,15 @@ class TaskService:
         # Optimization: Use streaming for search to remain memory efficient
         for task_el in self.xml.iter_all(self.filename, 'task'):
             if user_id:
-                if task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+                uid_val = task_el.findtext('user_id')
+                at_val = task_el.findtext('assigned_to')
+                if uid_val != str(user_id) and at_val != str(user_id):
                     continue
             
             t = self._element_to_dict(task_el)
-            if query and query not in t['title'].lower() and query not in t['description'].lower():
+            title = (t.get('title') or "").lower()
+            desc = (t.get('description') or "").lower()
+            if query and query not in title and query not in desc:
                 continue
             if status and t['status'] != status:
                 continue

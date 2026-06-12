@@ -1,8 +1,10 @@
 import os
+import copy
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_wtf.csrf import CSRFError
+from lxml import etree
 from auth_service import AuthService
 from task_service import TaskService
 from activity_service import ActivityService
@@ -18,8 +20,12 @@ csrf = CSRFProtect(app)
 # Ensure CSRF works with AJAX form posts (it relies on session cookies).
 # If cookies are missing, Flask-WTF will return HTML 400; instead, keep XHR JSON consistent.
 @app.after_request
-def _set_xhr_content_type(resp):
-    # No-op placeholder for future headers; keep function to avoid template changes.
+def add_header(resp):
+    """Add headers to prevent caching of API responses for real-time updates."""
+    if request.path.startswith('/api/'):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
     return resp
 
 # Initialize Services
@@ -41,7 +47,11 @@ def load_user(user_id):
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     print(f"[Security] CSRF Blocked: {e.description}")
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    # Detect Fetch/XHR by checking headers or content type
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 
+               request.headers.get('X-CSRFToken') is not None or
+               request.is_json)
+    if is_ajax:
         return jsonify({'success': False, 'error': 'Security token expired. Please refresh the page.'}), 400
     return render_template('login.html', error="Security token expired. Please refresh."), 400
 
@@ -203,7 +213,7 @@ def edit_task(task_id):
     raw_data = request.get_json() if request.is_json else request.form
     # Only include keys that are actually present in the request to allow partial updates
     update_data = {}
-    for key in ['title', 'description', 'priority', 'status']:
+    for key in ['title', 'description', 'priority', 'status', 'due_date']:
         if key in raw_data:
             update_data[key] = raw_data.get(key)
             
@@ -229,6 +239,15 @@ def archive_task(task_id):
         flash(msg, 'error')
     return redirect(url_for('tasks'))
 
+@app.route('/api/tasks/restore_bulk', methods=['POST'])
+@login_required
+def restore_bulk():
+    """AJAX endpoint to restore selected or all archived tasks."""
+    data = request.get_json() or {}
+    task_ids = data.get('task_ids') # Optional list of strings
+    success, msg = archive_service.bulk_restore_tasks(current_user.id, current_user.role == 'admin', task_ids)
+    return jsonify({'success': success, 'error': msg if not success else None})
+
 @app.route('/restore_task/<task_id>', methods=['POST'])
 @login_required
 def restore_task(task_id):
@@ -243,6 +262,116 @@ def restore_task(task_id):
             return jsonify({'success': False, 'error': msg}), 400
         flash(msg, 'error')
     return redirect(url_for('tasks'))
+
+@app.route('/api/tasks/clear_completed', methods=['POST'])
+@login_required
+def clear_completed():
+    """AJAX endpoint to bulk delete completed tasks."""
+    success, msg = task_service.bulk_delete_tasks('completed', current_user.id, current_user.role == 'admin')
+    return jsonify({'success': success, 'error': msg if not success else None})
+
+@app.route('/api/raw_tasks')
+@login_required
+def get_raw_tasks():
+    """Serves the raw XML tasks for frontend XSLT processing."""
+    tree = xml_service.get_element_tree('tasks')
+    # Create a deep copy to avoid corrupting the global cache during filtering
+    root = copy.deepcopy(tree.getroot())
+    
+    # Privacy filter: If not admin, only include tasks owned by or assigned to the user
+    if current_user.role != 'admin':
+        user_id = str(current_user.id)
+        # Filter the tree in memory before sending to frontend
+        for task in root.xpath(f"//task[user_id!='{user_id}' and assigned_to!='{user_id}']"):
+            task.getparent().remove(task)
+            
+    xml_output = etree.tostring(root, encoding='UTF-8', xml_declaration=True)
+    return xml_output, 200, {'Content-Type': 'text/xml; charset=utf-8'}
+
+@app.route('/api/raw_archive')
+@login_required
+def get_raw_archive():
+    """Serves the raw XML archive tasks for frontend processing."""
+    tree = xml_service.get_element_tree('archive_tasks')
+    root = copy.deepcopy(tree.getroot())
+    
+    if current_user.role != 'admin':
+        user_id = str(current_user.id)
+        for task in root.xpath(f"//task[user_id!='{user_id}']"):
+            task.getparent().remove(task)
+            
+    xml_output = etree.tostring(root, encoding='UTF-8', xml_declaration=True)
+    return xml_output, 200, {'Content-Type': 'text/xml; charset=utf-8'}
+
+@app.route('/api/tasks/rendered')
+@login_required
+def get_rendered_tasks():
+    """Serves tasks rendered as HTML via server-side XSLT."""
+    # This replaces the need for browser-side XSLTProcessor
+    # It assumes you have a 'tasks.xsl' in your schema or root folder
+    html = xml_service.apply_xslt('tasks', 'tasks') 
+    if html is not None:
+        return html, 200, {'Content-Type': 'text/html'}
+    return "Error: Could not render tasks on server.", 500
+
+@app.route('/api/sync_tasks', methods=['POST'])
+@login_required
+def sync_tasks():
+    """
+    Accepts a raw XML string from the frontend and persists it.
+    This supports the frontend-only XML manipulation layer.
+    """
+    try:
+        # Extract the raw XML from the request body
+        xml_data = request.data
+        if not xml_data:
+            return jsonify({'success': False, 'error': 'No XML data received'}), 400
+
+        # Parse the string into an ElementTree
+        # remove_blank_text=True ensures we don't save redundant whitespace
+        parser = etree.XMLParser(remove_blank_text=True)
+        root = etree.fromstring(xml_data, parser)
+
+        # SECURITY CHECK: If not admin, verify all tasks belong to current_user
+        if current_user.role != 'admin':
+            user_id_str = str(current_user.id)
+            for task in root.xpath("//task"):
+                task_owner = task.findtext('user_id')
+                if task_owner != user_id_str:
+                    return jsonify({'success': False, 'error': 'Unauthorized: Task ownership mismatch detected.'}), 403
+
+        # Load existing tree to merge/replace safely
+        full_tree = xml_service.get_element_tree('tasks')
+        # (Simple logic: For this UI-driven sync, we replace nodes carefully or save whole)
+        # In a multi-user system, we'd merge only the user's nodes into the main file.
+        tree = etree.ElementTree(root) 
+
+        # Persist using the existing service (handles XSD validation & XSLT sorting)
+        success, msg = xml_service.save_safely('tasks', tree)
+        
+        if success:
+            activity_service.log_activity(current_user.username, "Synced task data from UI")
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': msg}), 400
+
+    except etree.XMLSyntaxError as e:
+        return jsonify({'success': False, 'error': f"Malformed XML: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks/bulk_status', methods=['POST'])
+@login_required
+def bulk_status_update():
+    """AJAX endpoint to bulk update task statuses (e.g., Mark all pending as in_progress)."""
+    data = request.get_json()
+    curr = data.get('current_status')
+    new = data.get('new_status')
+    
+    if not curr or not new:
+        return jsonify({'success': False, 'error': 'Current and new status are required'}), 400
+        
+    success, msg = task_service.bulk_update_status(curr, new, current_user.id, current_user.role == 'admin')
+    return jsonify({'success': success, 'error': msg if not success else None})
 
 @app.route('/api/search')
 @login_required

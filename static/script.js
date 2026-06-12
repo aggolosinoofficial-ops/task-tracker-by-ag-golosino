@@ -3,8 +3,156 @@ const state = {
     currentPage: 1,
     pageSize: 50,
     totalPages: 1,
-    isLoading: false
+    isLoading: false,
+    sortBy: 'id',
+    sortOrder: 'descending'
 };
+let taskXmlDoc = null;
+
+/**
+ * Helper to highlight matching text for UI search
+ */
+function highlightText(text, term) {
+    if (!term || !text) return text;
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
+
+/**
+ * Modernized Render Function
+ */
+async function renderTasksModern(tasksToRender = null, forceFetch = false) {
+    const container = document.getElementById('taskList') || document.getElementById('archiveList');
+    const loader = document.getElementById('loading');
+    if (!container) return;
+
+    const isArchiveView = container.id === 'archiveList';
+    const apiEndpoint = isArchiveView ? '/api/raw_archive' : '/api/raw_tasks';
+
+    // Cache invalidation: If we switched between Archive and Active views, force fetch
+    const lastViewType = localStorage.getItem('lastViewType');
+    const currentViewType = isArchiveView ? 'archive' : 'active';
+    if (lastViewType !== currentViewType) {
+        forceFetch = true;
+        localStorage.setItem('lastViewType', currentViewType);
+    }
+
+    try {
+        // Optimization: Only fetch from server if we don't have data yet or explicitly forced
+        if (!taskXmlDoc || forceFetch) {
+            const xmlResponse = await fetch(apiEndpoint, { cache: 'no-store' });
+            const xmlText = await xmlResponse.text();
+            const parser = new DOMParser();
+            taskXmlDoc = parser.parseFromString(xmlText, "application/xml");
+        }
+
+        // Use provided tasks (filtered) or all tasks from the XML
+        const tasks = tasksToRender || Array.from(taskXmlDoc.getElementsByTagName('task'));
+
+        // Get current search term for highlighting
+        const searchTerm = document.getElementById('taskSearchInput')?.value.trim() || '';
+
+        container.innerHTML = '';
+        if (loader) loader.style.display = 'none';
+
+        if (tasks.length === 0) {
+            container.innerHTML = '<div class="alert alert-info w-100">No active tasks found.</div>';
+            return;
+        }
+
+        // Add Select All header for Archive View
+        if (isArchiveView) {
+            const header = document.createElement('div');
+            header.className = 'select-all-header mb-3 p-3 rounded shadow-sm d-flex align-items-center';
+            header.innerHTML = `
+                <div class="form-check ms-1">
+                    <input class="form-check-input" type="checkbox" id="selectAllTasks" onchange="toggleSelectAll(this.checked)">
+                    <label class="form-check-label ms-2 fw-bold text-secondary" for="selectAllTasks">Select All Archived Tasks</label>
+                </div>
+            `;
+            container.appendChild(header);
+        }
+
+        tasks.forEach(task => {
+            const getVal = (tag) => task.getElementsByTagName(tag)[0]?.textContent || '';
+            const id = getVal('id');
+            const title = getVal('title');
+            const description = getVal('description');
+            const priority = getVal('priority');
+            const status = getVal('status');
+            const dueDate = getVal('due_date');
+
+            const highlightedTitle = highlightText(title, searchTerm);
+            const highlightedDescription = highlightText(description, searchTerm);
+
+            const checkboxHtml = isArchiveView ? `
+                <div class="form-check me-3">
+                    <input class="form-check-input task-selector" type="checkbox" value="${id}">
+                </div>
+            ` : '';
+
+            const card = document.createElement('div');
+            card.className = `card task-card priority-${priority.toLowerCase()} status-${status}`;
+            card.innerHTML = `
+                <div class="card-body">
+                    <div class="d-flex align-items-start mb-2">
+                        ${checkboxHtml}
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h5 class="card-title mb-0">${highlightedTitle}</h5>
+                                <span class="badge priority-badge priority-${priority.toLowerCase()}">${priority}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted">${highlightedDescription || 'No description provided.'}</p>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <small class="text-secondary">📅 ${dueDate || 'No date'}</small>
+                        <div class="card-actions">
+                            ${isArchiveView ? `
+                                <button type="button" class="btn btn-sm btn-edit" data-action="restore" data-task-id="${id}">Restore</button>
+                            ` : `
+                                <button type="button" class="btn btn-sm btn-complete" data-action="toggle" data-task-id="${id}" data-status="${status}">
+                                    ${status === 'completed' ? 'Reopen' : 'Done'}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-edit" data-action="edit" data-task-id="${id}">Edit</button>
+                                <button type="button" class="btn btn-sm btn-delete" data-action="delete" data-task-id="${id}">Archive</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        
+        // Trigger the Neon Border logic from ui.js
+        document.dispatchEvent(new CustomEvent('taskUpdated'));
+        
+    } catch (err) {
+        console.error("XSLT Error:", err);
+    }
+}
+
+function applyFilters() {
+    if (!taskXmlDoc) return;
+    
+    const term = document.getElementById('taskSearchInput').value.toLowerCase();
+    const priority = document.getElementById('priorityFilter').value;
+    
+    const allTasks = Array.from(taskXmlDoc.getElementsByTagName('task'));
+    
+    const filtered = allTasks.filter(t => {
+        const title = t.getElementsByTagName('title')[0]?.textContent.toLowerCase() || '';
+        const desc = t.getElementsByTagName('description')[0]?.textContent.toLowerCase() || '';
+        const p = t.getElementsByTagName('priority')[0]?.textContent || 'Medium';
+        
+        const matchesSearch = title.includes(term) || desc.includes(term);
+        const matchesPriority = priority === 'All' || p === priority;
+        
+        return matchesSearch && matchesPriority;
+    });
+    
+    renderTasksModern(filtered, false);
+}
 
 // Initialize on page load - check if DOM is ready
 function initializeTaskForm() {
@@ -15,6 +163,15 @@ function initializeTaskForm() {
             addTask();
         });
         taskForm._initialized = true;
+    }
+
+    const editTaskForm = document.getElementById('editTaskForm');
+    if (editTaskForm && !editTaskForm._initialized) {
+        editTaskForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveEdit();
+        });
+        editTaskForm._initialized = true;
     }
 }
 
@@ -34,6 +191,20 @@ function initializeTaskListHandlers() {
 }
 
 function handleTaskListClick(event) {
+    // Handle Header Sorting
+    const header = event.target.closest('.sort-header');
+    if (header) {
+        const column = header.dataset.column;
+        if (state.sortBy === column) {
+            state.sortOrder = state.sortOrder === 'ascending' ? 'descending' : 'ascending';
+        } else {
+            state.sortBy = column;
+            state.sortOrder = 'ascending';
+        }
+        renderTasksWithXSLT(state.sortBy, state.sortOrder);
+        return;
+    }
+
     const button = event.target.closest('button[data-action]');
     if (!button) {
         return;
@@ -103,95 +274,6 @@ function showNotification(message, type = 'info', duration = 4000) {
     notification._timeoutId = timeoutId;
 }
 
-// OPTIMIZED: Load tasks with pagination support
-function loadTasks(page = 1) {
-    if (state.isLoading) return;
-    
-    state.isLoading = true;
-    const loading = document.getElementById('loading');
-    if (loading) loading.style.display = 'block';
-    
-    fetch(`/api/search?page=${page}&limit=${state.pageSize}`, {
-        credentials: 'same-origin',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-        .then(response => {
-            if (response.status === 401) {
-                if (loading) loading.style.display = 'none';
-                state.isLoading = false;
-                window.location.href = '/login';
-                return null;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data) return;
-            if (loading) loading.style.display = 'none';
-            
-            // Handle error responses
-            if (data.error) {
-                showNotification('✗ Error: ' + data.error, 'error');
-                state.isLoading = false;
-                return;
-            }
-
-            // Handle both new paginated format and legacy format
-            let tasks = [];
-            let pagination = null;
-            
-            if (data.data !== undefined) {
-                tasks = data.data || [];
-                pagination = data.pagination;
-                if (pagination) {
-                    state.currentPage = pagination.page;
-                    state.totalPages = pagination.total_pages;
-                }
-            } else if (Array.isArray(data)) {
-                tasks = data;
-            } else if (data.success === true) {
-                tasks = data.tasks || [];
-            }
-
-            const taskList = document.getElementById('taskList');
-            if (!taskList) {
-                if (loading) loading.style.display = 'none';
-                state.isLoading = false;
-                return;
-            }
-            taskList.innerHTML = '';
-            
-            const fragment = document.createDocumentFragment();
-            if (!tasks || tasks.length === 0) {
-                const emptyDiv = document.createElement('div');
-                emptyDiv.style.textAlign = 'center';
-                emptyDiv.style.padding = '40px';
-                emptyDiv.style.color = '#999';
-                emptyDiv.textContent = 'No tasks found.';
-                fragment.appendChild(emptyDiv);
-            } else {
-                tasks.forEach(task => {
-                    fragment.appendChild(createTaskElement(task));
-                });
-            }
-            taskList.appendChild(fragment);
-            
-            if (pagination && pagination.total_pages > 1) {
-                createPaginationControls(pagination, taskList);
-            }
-            
-            state.isLoading = false;
-            updateDashboardSummary();
-        })
-        .catch(error => {
-            if (loading) loading.style.display = 'none';
-            console.error('Error loading tasks:', error);
-            showNotification('✗ Network error: Could not load tasks', 'error');
-            state.isLoading = false;
-        });
-}
-
 function animateValue(id, start, end, duration) {
     const obj = document.getElementById(id);
     if (!obj) return;
@@ -210,17 +292,6 @@ function animateValue(id, start, end, duration) {
 }
 
 function updateDashboardSummary() {
-    const tasks = document.querySelectorAll('.task-card');
-    const stats = { total: 0, completed: 0, pending: 0, archived: 0 };
-    tasks.forEach(t => {
-        const s = t.dataset.status;
-        if (stats[s] !== undefined) stats[s]++;
-        if (s !== 'archived') stats.total++;
-    });
-    animateValue('total-count', 0, stats.total, 1000);
-    animateValue('completed-count', 0, stats.completed, 1000);
-    animateValue('pending-count', 0, stats.pending, 1000);
-    animateValue('archived-count', 0, stats.archived, 1000);
     // Fetch real stats from server instead of counting DOM elements (which breaks with pagination)
     fetch('/api/insights', {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -380,7 +451,8 @@ function addTask() {
         if (result.success) {
             showNotification('✓ Task saved!', 'success');
             document.getElementById('taskForm').reset();
-            loadTasks(1);
+            renderTasksModern(null, true);
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
         } else {
             showNotification('✗ Error: ' + result.error, 'error');
         }
@@ -409,7 +481,10 @@ function quickAddTask() {
         if (result.success) {
             input.value = '';
             showNotification('✓ Task added!', 'success');
-            if (document.getElementById('taskList')) loadTasks(1);
+            if (document.getElementById('taskList')) {
+                renderTasksModern(null, true);
+                document.dispatchEvent(new CustomEvent('taskUpdated'));
+            }
         } else {
             showNotification('✗ ' + result.error, 'error');
         }
@@ -417,7 +492,17 @@ function quickAddTask() {
     .catch(() => showNotification('✗ Network error', 'error'));
 }
 
-function fetchJsonSafe(url, options = {}) {
+async function fetchJsonSafe(url, options = {}) {
+    // Automatically inject CSRF token for POST/PUT/DELETE requests
+    if (options.method && options.method !== 'GET') {
+        const token = await getCsrfTokenOrThrow();
+        options.headers = {
+            ...options.headers,
+            'X-CSRFToken': token,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        };
+    }
     return fetch(url, options).then(async (r) => {
         if (!r.ok) throw new Error('Network error');
         return r.json();
@@ -437,11 +522,28 @@ async function getCsrfTokenOrThrow() {
 
 function toggleTask(id, currentStatus) {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-    const confirmMessage = newStatus === 'completed' 
-        ? 'Are you sure you want to mark this task as complete?' 
-        : 'Are you sure you want to mark this task as pending?';
 
-    if (!confirm(confirmMessage)) return; 
+    // If completing, check if user wants to archive it right away
+    if (newStatus === 'completed') {
+        const choice = confirm('Task completed! Move to archive?');
+        if (choice) {
+            // First update status to completed, then archive
+            fetchJsonSafe(`/edit_task/${id}`, {
+                method: 'POST',
+                body: JSON.stringify({ status: 'completed' })
+            }).then(() => {
+                // We bypass the confirm in deleteTask by calling the API directly
+                fetchJsonSafe(`/archive_task/${id}`, { method: 'POST' }).then(() => {
+                    showNotification('✓ Task completed and archived', 'success');
+                    renderTasksModern(null, true);
+                    document.dispatchEvent(new CustomEvent('taskUpdated'));
+                });
+            });
+            return;
+        }
+    } else {
+        if (!confirm('Mark as pending?')) return;
+    }
 
     fetchJsonSafe(`/edit_task/${id}`, {
         method: 'POST',
@@ -449,7 +551,7 @@ function toggleTask(id, currentStatus) {
     }).then(res => {
         if (res.success) {
             showNotification('✓ Updated!', 'success');
-            loadTasks();
+            renderTasksModern(null, true);
             document.dispatchEvent(new CustomEvent('taskUpdated'));
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to update status'), 'error');
@@ -462,7 +564,7 @@ function restoreTask(id) {
         .then(result => {
             if (result && result.success) {
                 showNotification('✓ Task restored!', 'success');
-                location.reload(); 
+                renderTasksModern(null, true);
                 document.dispatchEvent(new CustomEvent('taskUpdated'));
             } else {
                 showNotification('✗ Error: ' + (result.error || 'Failed to restore'), 'error');
@@ -473,43 +575,122 @@ function restoreTask(id) {
         });
 }
 
+function toggleSelectAll(checked) {
+    const list = document.getElementById('archiveList');
+    if (!list) return;
+    const checkboxes = list.querySelectorAll('.task-selector');
+    checkboxes.forEach(cb => cb.checked = checked);
+}
+
+function restoreAllTasks() {
+    if (!confirm('Move all archived tasks back to the active list?')) return;
+    
+    fetchJsonSafe('/api/tasks/restore_bulk', { method: 'POST' })
+        .then(res => {
+            if (res.success) {
+                showNotification('✓ All tasks restored!', 'success');
+                renderTasksModern(null, true);
+                document.dispatchEvent(new CustomEvent('taskUpdated'));
+            }
+        });
+}
+
+function restoreSelectedTasks() {
+    const selectedIds = Array.from(document.querySelectorAll('.task-selector:checked')).map(cb => cb.value);
+    if (selectedIds.length === 0) {
+        showNotification('Please select tasks to restore.', 'info');
+        return;
+    }
+
+    fetchJsonSafe('/api/tasks/restore_bulk', { 
+        method: 'POST', 
+        body: JSON.stringify({ task_ids: selectedIds }) 
+    }).then(res => {
+        if (res.success) {
+            showNotification(`✓ ${selectedIds.length} tasks restored!`, 'success');
+            renderTasksModern(null, true);
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
+        }
+    });
+}
+
 function showEditForm(id) {
-    const form = document.getElementById(`editForm${id}`);
-    if (form) form.style.display = 'block';
+    if (!taskXmlDoc) return;
+    
+    const tasks = Array.from(taskXmlDoc.getElementsByTagName('task'));
+    const task = tasks.find(t => t.getElementsByTagName('id')[0]?.textContent === id);
+    
+    if (!task) return;
+
+    const getVal = (tag) => task.getElementsByTagName(tag)[0]?.textContent || '';
+
+    document.getElementById('editTaskId').value = id;
+    document.getElementById('editTitle').value = getVal('title');
+    document.getElementById('editDescription').value = getVal('description');
+    document.getElementById('editPriority').value = getVal('priority') || 'Medium';
+    document.getElementById('editDueDate').value = getVal('due_date');
+
+    const modal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+    modal.show();
 }
 
 function hideEditForm(id) {
-    document.getElementById(`editForm${id}`).style.display = 'none';
+    // No longer needed with Bootstrap Modal
 }
 
-function saveEdit(id) {
-    const form = document.getElementById(`editForm${id}`);
-    const title = form.querySelector('input').value.trim();
-    const description = form.querySelector('textarea').value.trim();
+function saveEdit() {
+    const id = document.getElementById('editTaskId').value;
+    const title = document.getElementById('editTitle').value.trim();
+    const description = document.getElementById('editDescription').value.trim();
+    const priority = document.getElementById('editPriority').value;
+    const dueDate = document.getElementById('editDueDate').value;
+
     fetchJsonSafe(`/edit_task/${id}`, {
         method: 'POST',
-        body: JSON.stringify({ title, description })
+        body: JSON.stringify({ title, description, priority, due_date: dueDate })
     }).then(res => {
         if (res.success) {
             showNotification('✓ Updated!', 'success');
-            hideEditForm(id);
-            loadTasks();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editTaskModal'));
+            modal.hide();
+            renderTasksModern(null, true);
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to save changes'), 'error');
         }
     });
 }
 
+function clearCompletedTasks() {
+    if (!confirm('Are you sure you want to move all completed tasks to the archive?')) return;
+
+    fetchJsonSafe('/api/tasks/clear_completed', {
+        method: 'POST'
+    }).then(res => {
+        if (res.success) {
+            showNotification('✓ Completed tasks archived!', 'success');
+            // Force re-fetch of XML and re-render the task list
+            renderTasksModern(null, true);
+            // Trigger dashboard and insight updates
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
+        } else {
+            showNotification('✗ Error: ' + (res.error || 'Failed to clear tasks'), 'error');
+        }
+    }).catch(err => {
+        console.error('Clear completed error:', err);
+        showNotification('✗ Network error occurred.', 'error');
+    });
+}
+
 function deleteTask(id) {
     if (!confirm('Archive this task?')) return;
-    fetch(`/archive_task/${id}`, {
+    fetchJsonSafe(`/archive_task/${id}`, {
         method: 'POST'
     })
-    .then(r => r.json())
     .then(res => {
         if (res.success) {
             showNotification('✓ Archived!', 'success');
-            loadTasks();
+            renderTasksModern(null, true);
             document.dispatchEvent(new CustomEvent('taskUpdated'));
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to archive task'), 'error');
@@ -535,8 +716,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeTaskListHandlers();
     initializeTaskForm(); 
     
+    // Real-time Insights: Update dashboard whenever a task is changed
+    document.addEventListener('taskUpdated', () => {
+        if (typeof updateDashboardSummary === 'function') updateDashboardSummary();
+    });
+
     // Only load tasks if we are on a page with a task list
-    if (document.getElementById('taskList')) {
-        loadTasks(1);
+    if (document.getElementById('taskList') || document.getElementById('archiveList')) {
+        renderTasksModern();
     }
 });

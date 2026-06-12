@@ -1,3 +1,66 @@
+/* --- Background Animations --- */
+@keyframes cloud-drift {
+    from { transform: translateX(-100%); opacity: 0; }
+    10% { opacity: 0.8; }
+    90% { opacity: 0.8; }
+    to { transform: translateX(100vw); opacity: 0; }
+}
+
+@keyframes star-twinkle {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes nebula-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+/* --- Core Theme Backgrounds --- */
+body {
+    background: linear-gradient(135deg, #FFDAB9 0%, #FFB6C1 25%, #E6E6FA 50%, #87CEFA 100%);
+    background-attachment: fixed;
+    position: relative;
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: all 0.5s ease;
+}
+
+/* Light Mode Clouds */
+body:not(.dark-mode)::after {
+    content: "☁️";
+    font-size: 100px;
+    position: fixed;
+    top: 15%;
+    left: -150px;
+    opacity: 0.4;
+    filter: blur(10px);
+    animation: cloud-drift 80s linear infinite;
+    z-index: -1;
+}
+
+body.dark-mode {
+    background: linear-gradient(135deg, #191970 0%, #4B0082 25%, #2F2F2F 50%, #9400D3 100%);
+    color: #f0f0f0;
+}
+
+/* Nebula & Stars for Dark Mode */
+body.dark-mode::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 255, 255, 0.15), transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(255, 0, 255, 0.15), transparent 40%),
+        radial-gradient(1px 1px at 10% 10%, #fff, transparent),
+        radial-gradient(2px 2px at 50% 50%, #fff, transparent),
+        radial-gradient(1px 1px at 80% 20%, #fff, transparent);
+    background-size: cover, cover, 200px 200px, 350px 350px, 400px 400px;
+    animation: nebula-pulse 15s ease-in-out infinite, star-twinkle 4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+
 /* Auth Pages Title Readability */
 .auth-title {
     color: #5a52a5 !important;
@@ -10,13 +73,16 @@
 
 /* Task Card & Summary Card Gradient Skin */
 .task-card, .summary-card, .stat-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 245, 255, 0.9));
+    background: rgba(255, 255, 255, 0.98);
     border: none;
+    border-radius: 15px;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    padding: 1.5rem; /* Increased padding for better breathing room */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 
 /* Light Mode Cotton Candy Gradients */
-body:not(.dark-mode) .task-card {
+body:not(.dark-mode) .task-card, body:not(.dark-mode) .summary-card {
     background: linear-gradient(135deg, #ffffff 0%, #f9f0ff 100%);
     border-left: 5px solid #a29bfe;
     color: #2d3436; /* High contrast for readability */
@@ -51,10 +117,28 @@ body:not(.dark-mode) .stat-card {
     border: none;
 }
 
+/* Fix inner card spacing */
+.task-card .card-body {
+    padding: 0; /* Remove default bootstrap padding to use our custom container padding */
+}
+
+.task-card .card-title {
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.25rem;
+}
+
+.task-card .card-text {
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
 /* Dark Mode Neon Gradients */
 body.dark-mode .task-card, body.dark-mode .stat-card {
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    border: 1px solid rgba(0, 255, 255, 0.3);
+    background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
+    border: 1px solid var(--card-neon-color, rgba(0, 255, 255, 0.2));
     color: #f0f0f0;
 }
 
@@ -67,24 +151,67 @@ body.dark-mode .task-card small {
 }
 
 body.dark-mode .btn-edit {
-    background: linear-gradient(135deg, #00ffff, #6c63ff);
+    background: linear-gradient(135deg, #BF00FF, #00FFFF); /* NeonPurple to Cyan */
     color: #fff;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    border: none;
 }
 
 body.dark-mode .btn-complete {
-    background: linear-gradient(135deg, #ff00ff, #39ff14);
+    background: #32CD32; /* Lime Neon */
     color: #fff;
-    box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+    border: none;
 }
 
 body.dark-mode .btn-delete {
-    background: linear-gradient(135deg, #ff073a, #ff00ff);
+    background: #FF00FF; /* Magenta */
     color: #fff;
-    box-shadow: 0 0 10px rgba(255, 7, 58, 0.3);
+    border: none;
 }
 
-/* Global Button Interactions */
+/* --- Responsive Navigation Layout --- */
+@media (min-width: 1024px) {
+    .sidebar { width: 220px !important; }
+    .sidebar .side-text { display: inline !important; }
+}
+
+@media (max-width: 1023px) and (min-width: 768px) {
+    .sidebar { width: 70px !important; }
+    .sidebar .side-text { display: none !important; }
+}
+
+@media (max-width: 767px) {
+    .sidebar { display: none !important; }
+    .main, .dashboard-container { margin-left: 0 !important; padding-bottom: 80px !important; }
+    body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    
+    /* Show Bottom Nav icons */
+    .bottom-nav {
+        display: flex !important;
+        position: fixed;
+        bottom: 0; left: 0; width: 100%; height: 70px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        justify-content: space-around;
+        align-items: center;
+        z-index: 2000;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+    
+    body.dark-mode .bottom-nav {
+        background: rgba(26, 26, 26, 0.95);
+        border-top: 1px solid #BF00FF;
+    }
+    
+    .floating-add-btn {
+        position: fixed;
+        bottom: 85px; right: 20px;
+        width: 60px; height: 60px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+}
 .card-actions button {
     border: none !important;
     font-weight: 600;
@@ -105,4 +232,61 @@ body.dark-mode .card-actions button:hover {
     0%   { opacity: 0.8; filter: drop-shadow(0 0 1px #00ffff); }
     50%  { opacity: 1; filter: drop-shadow(0 0 3px #ff00ff); }
     100% { opacity: 0.8; filter: drop-shadow(0 0 1px #00ffff); }
+}
+
+/* High Priority Neon Pulse for Dark Mode */
+@keyframes priority-pulse {
+    0% { box-shadow: 0 0 10px rgba(255, 7, 58, 0.4); border-color: rgba(255, 7, 58, 0.5); }
+    50% { box-shadow: 0 0 25px rgba(255, 7, 58, 0.8); border-color: rgba(255, 7, 58, 1); }
+    100% { box-shadow: 0 0 10px rgba(255, 7, 58, 0.4); border-color: rgba(255, 7, 58, 0.5); }
+}
+
+body.dark-mode .task-card.priority-high {
+    animation: priority-pulse 3s infinite ease-in-out;
+}
+
+/* --- Search Highlighting --- */
+.search-highlight {
+    background-color: transparent;
+    padding: 0 1px;
+    color: inherit;
+}
+
+body:not(.dark-mode) .search-highlight {
+    background-color: rgba(162, 155, 254, 0.2); /* Soft lavender */
+    color: #5a52a5;
+    border-bottom: 2px solid #a29bfe;
+    font-weight: 600;
+}
+
+body.dark-mode .search-highlight {
+    background-color: rgba(0, 255, 255, 0.15); /* Neon Cyan base */
+    color: #00ffff;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+    font-weight: 600;
+}
+
+/* --- Select All & Checkbox Polishing --- */
+.select-all-header {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px dashed #a29bfe;
+    transition: all 0.3s ease;
+}
+
+body.dark-mode .select-all-header {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: #00ffff;
+    box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.05);
+}
+
+.task-selector {
+    cursor: pointer;
+    transform: scale(1.1);
+    transition: box-shadow 0.2s ease;
+}
+
+body.dark-mode .task-selector:checked {
+    box-shadow: 0 0 8px #00ffff;
+    background-color: #00ffff;
+    border-color: #00ffff;
 }

@@ -96,41 +96,78 @@ class XMLService:
             return portalocker.Lock(path, timeout=5)
         return None
 
+    def apply_xslt(self, xml_filename, xsl_filename, **params):
+        """Applies an XSLT transformation on the server to avoid browser-side deprecation."""
+        xml_path, _ = self._get_paths(xml_filename)
+        xsl_path = os.path.join(self.schema_dir, f"{xsl_filename}.xsl")
+        
+        if not os.path.exists(xsl_path):
+            # Fallback to base directory if not in schema folder
+            xsl_path = os.path.join(self.base_dir, f"{xsl_filename}.xsl")
+
+        if not os.path.exists(xml_path) or not os.path.exists(xsl_path):
+            return None
+
+        try:
+            tree = self.get_element_tree(xml_filename)
+            xslt_root = etree.parse(xsl_path)
+            transform = etree.XSLT(xslt_root)
+            result = transform(tree, **params)
+            return etree.tostring(result, encoding='unicode', method='html')
+        except Exception as e:
+            print(f"[XMLService] Server-side XSLT failed: {e}")
+            return None
+
     def save_safely(self, filename, tree, entity_id=None):
         xml_path, xsd_path = self._get_paths(filename)
         # Use portalocker if available, otherwise use a nullcontext as a no-op
         lock = self._lock_file(xml_path) or nullcontext()
-        
+
         with lock:
-            return self._perform_save(filename, tree, xml_path, entity_id)
+            # Auto-sort tasks if saving tasks to ensure XSD sequence compliance
+            if "tasks" in filename:
+                # Native Python sorting to replace XSLT reordering
+                order = ['id', 'user_id', 'assigned_to', 'title', 'description', 'status', 'created_at', 'priority', 'due_date', 'last_updated']
+                # Use .xpath('//task') on the tree object
+                for task in tree.xpath('.//task'):
+                    elements = {child.tag: child for child in task}
+                    # Remove existing and re-append in order
+                    for child in list(task):
+                        task.remove(child)
+                    for tag in order:
+                        if tag in elements:
+                            task.append(elements[tag])
+            
+            xml_string = etree.tostring(tree, encoding='UTF-8', xml_declaration=True, pretty_print=True)
+            
+            if filename in self._schemas:
+                try:
+                    parser = etree.XMLParser(schema=self._schemas[filename])
+                    etree.fromstring(xml_string, parser)
+                except etree.XMLSyntaxError as e:
+                    return False, f"XML Syntax Error: {str(e)}"
+                except etree.DocumentInvalid as e:
+                    # Detailed error reporting for XSD mismatches
+                    log = e.error_log.filter_from_errors()
+                    error_msg = str(log[0]) if log else "Unknown validation error"
+                    print(f"[XMLService] XSD Validation failed for {filename}: {error_msg}")
+                    return False, f"Schema Validation Error: {error_msg}"
+                except Exception as e:
+                    return False, f"Validation error: {str(e)}"
 
-    def _perform_save(self, filename, tree, xml_path, entity_id=None):
-        # Pre-generate XML string to validate before writing to disk
-        xml_string = etree.tostring(tree, encoding='UTF-8', xml_declaration=True, pretty_print=True)
-        
-        if filename in self._schemas:
+            fd, temp_path = tempfile.mkstemp(dir=self.data_dir, suffix='.tmp')
             try:
-                parser = etree.XMLParser(schema=self._schemas[filename])
-                etree.fromstring(xml_string, parser)
-            except etree.DocumentInvalid as e:
-                error_msg = str(e.error_log.filter_from_errors()[0]) if e.error_log else "Unknown validation error"
-                return False, f"Validation failed: {error_msg}"
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(xml_string)
+                os.replace(temp_path, xml_path)
             except Exception as e:
-                return False, f"Validation error: {str(e)}"
-
-        fd, temp_path = tempfile.mkstemp(dir=self.data_dir, suffix='.tmp')
-        try:
-            with os.fdopen(fd, 'wb') as f:
-                f.write(xml_string)
-            os.replace(temp_path, xml_path)
-        except Exception as e:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            return False, f"Atomic write failed: {str(e)}"
-        
-        self._cache[filename] = tree
-        self._last_load[filename] = os.path.getmtime(xml_path)
-        return True, "Success"
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                return False, f"Atomic write failed: {str(e)}"
+            
+            self._cache[filename] = tree
+            self._last_load[filename] = os.path.getmtime(xml_path)
+            return True, "Success"
 
     def get_next_id(self, filename, tag_name):
         """Uses streaming to find the next available ID without loading the whole DOM."""

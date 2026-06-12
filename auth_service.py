@@ -15,8 +15,12 @@ class User(UserMixin):
         """Factory method to create a User object from an lxml element."""
         if el is None:
             return None
+            
+        # Prioritize attribute ID per users.xsd, fallback to element for legacy compatibility
+        user_id = el.get('id') or el.findtext('id')
+            
         return cls(
-            id=el.findtext('id'),
+            id=str(user_id),
             username=el.findtext('username', 'Unknown'),
             role=el.findtext('role', 'user')
         )
@@ -82,7 +86,8 @@ class AuthService:
         return None
 
     def get_user_by_id(self, user_id):
-        users = self.xml.find_all(self.filename, "//user[id=$id]", id=user_id)
+        # Match id as an attribute (@id) to align with users.xsd
+        users = self.xml.find_all(self.filename, "//user[@id=$id]", id=user_id)
         if users:
             return User.from_element(users[0])
         return None
@@ -103,14 +108,15 @@ class AuthService:
         user_id = self.xml.get_next_id(self.filename, "user")
         new_user = etree.SubElement(root, "user")
         
-        # Explicitly setting method to 'scrypt' or 'pbkdf2:sha256' avoids the '' method error
-        # and ensures compatibility with modern Werkzeug
-        hashed_password = generate_password_hash(password, method='scrypt')
+        # Using pbkdf2:sha256 for maximum compatibility across environments
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         
-        etree.SubElement(new_user, "id").text = user_id
+        # Set ID as an attribute to match users.xsd requirement strictly
+        new_user.set("id", str(user_id))
         etree.SubElement(new_user, "username").text = username
         etree.SubElement(new_user, "password_hash").text = hashed_password
         etree.SubElement(new_user, "role").text = role
-        etree.SubElement(new_user, "created_at").text = datetime.now().isoformat()
+        # Use a timestamp format compatible with strict xs:dateTime (no microseconds)
+        etree.SubElement(new_user, "created_at").text = datetime.now().replace(microsecond=0).isoformat()
         
         return self.xml.save_safely(self.filename, tree, user_id)

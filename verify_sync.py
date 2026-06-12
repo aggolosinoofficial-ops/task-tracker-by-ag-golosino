@@ -138,19 +138,17 @@ class SyncVerifier:
                 user_id_el = user.find('id')
                 user_id_val = user_id_el.text if user_id_el is not None else user.get('id')
 
-                # Migration: Move ID from attribute to element
-                if user_id_el is None and user.get('id'):
+                # Migration: Move ID from element to attribute (Aligning with users.xsd)
+                if user_id_el is not None:
                     if self.do_fix:
-                        el = ET.Element('id')
-                        el.text = user.get('id')
-                        user.insert(0, el)
-                        user.attrib.pop('id', None)
+                        user.set('id', user_id_el.text)
+                        user.remove(user_id_el)
                         changed = True
                     else:
-                        self.issues.append(f"User {user.get('id')}: Missing <id> element (found as attribute)")
+                        self.issues.append(f"User {user_id_val}: Found <id> element (should be attribute)")
 
                 # Aggressive Fix: Generate missing ID if totally absent
-                if user.find('id') is None and self.do_fix:
+                if user.get('id') is None and self.do_fix:
                     new_id = str(max([int(uid) for uid in user_ids if uid.isdigit()] + [0]) + 1)
                     el = ET.Element('id')
                     el.text = new_id

@@ -15,12 +15,13 @@
     box-sizing: border-box;
 }
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: var(--main-bg);
-  color: #333;
-  transition: background-color 0.3s ease, color 0.3s ease;
+
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--main-bg);
+    color: #333;
+    transition: background-color 0.3s ease, color 0.3s ease;
     /* Compatibility: Print colors */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -131,7 +132,7 @@ body.dark-mode h1 {
     padding: 20px;
     border: 1px solid rgba(0,0,0,0.05);
     -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     overflow: hidden;

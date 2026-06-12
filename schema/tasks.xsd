@@ -8,6 +8,7 @@
             <xs:sequence>
               <xs:element name="id" type="xs:integer"/>
               <xs:element name="user_id" type="xs:integer"/>
+              <xs:element name="assigned_to" type="xs:integer" minOccurs="0"/>
               <xs:element name="title">
                 <xs:simpleType>
                   <xs:restriction base="xs:string">
@@ -38,6 +39,7 @@
                 </xs:simpleType>
               </xs:element>
               <xs:element name="due_date" type="xs:string" minOccurs="0"/>
+              <xs:element name="last_updated" type="xs:string" minOccurs="0"/>
             </xs:sequence>
           </xs:complexType>
         </xs:element>

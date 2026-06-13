@@ -1,17 +1,24 @@
 /* Basic Reset & Body Styling (adjust as per your project's base styles) */
 :root {
+    /* Light Mode Variables */
     --neon-color: #00ffff;
     --neon-glow: 0 0 12px #00ffff;
     --neon-hover: 0 0 20px #00ffff, 0 0 40px #00ffff;
     --success-glow: #39ff14;
     --warning-glow: #ffea00;
-    --sidebar-bg: #1a1a1a;
+    --sidebar-bg: rgba(255, 255, 255, 0.9);
+    --sidebar-border-color: rgba(162, 155, 254, 0.3);
+    --sidebar-link-color: #5a52a5; /* Default link color in light mode */
+    --sidebar-link-hover-bg: rgba(162, 155, 254, 0.1); /* Light mode hover bg */
+    --sidebar-link-hover-color: #5a52a5; /* Light mode hover color */
+    --mobile-nav-toggle-color: #5a52a5; /* Light mode toggle color */
+    --toggle-text-color: #5a52a5; /* Light mode toggle text */
+    --toggle-hover-color: #a29bfe; /* Light mode toggle hover */
     --main-bg: #f4f7f6;
     --dark-bg: #2c2c2c;
 }
 
 * {
-    -webkit-box-sizing: border-box;
     box-sizing: border-box;
 }
 body {
@@ -21,6 +28,18 @@ body {
     padding: 0;
     background-color: var(--main-bg);
     color: #333;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    /* Compatibility: Print colors */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+body.dark-mode {
+    /* Dark Mode Overrides */
+    --sidebar-bg: rgba(26, 26, 26, 0.9);
+    --sidebar-border-color: #BF00FF; /* Neon Purple */
+    --toggle-text-color: #00ffff; /* Dark mode toggle text */
+    --toggle-hover-color: #BF00FF; /* Dark mode toggle hover */
     transition: background-color 0.3s ease, color 0.3s ease;
     /* Compatibility: Print colors */
     -webkit-print-color-adjust: exact;
@@ -40,7 +59,7 @@ body.dark-mode {
     top: 0;
     height: 100%;
     width: 70px; /* Minimized width */
-    background: #1a1a1a;
+    background: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -48,16 +67,18 @@ body.dark-mode {
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1000;
     overflow: hidden;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3); /* Keep consistent shadow */
+    -webkit-backdrop-filter: blur(10px); /* Ensure prefix is first */
+    backdrop-filter: blur(10px);
 }
 
 .sidebar:hover {
     width: 220px;
 }
 
-.sidebar a {
+.sidebar a, .sidebar .mobile-nav-toggle { /* Apply to toggle as well */
     width: 100%;
-    padding: 15px 25px;
+    padding: 15px 25px; /* Adjust padding for consistency */
     text-decoration: none;
     color: #bbb;
     display: flex;
@@ -73,8 +94,13 @@ body.dark-mode {
 }
 
 .sidebar a:hover {
-    background: rgba(0, 255, 255, 0.1);
+    background: var(--sidebar-link-hover-bg);
     color: var(--neon-color);
+}
+
+#darkModeToggle {
+    color: var(--toggle-text-color);
+    transition: color 0.3s ease;
 }
 
 .sidebar .side-text, .sidebar span {
@@ -131,8 +157,8 @@ body.dark-mode h1 {
     border-radius: 15px;
     padding: 20px;
     border: 1px solid rgba(0,0,0,0.05);
-    -webkit-backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px); /* Fix prefix order */
+    backdrop-filter: blur(4px);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     overflow: hidden;
@@ -221,3 +247,34 @@ body.dark-mode .summary-card:hover {
         max-width: 300px;
     }
 }
+
+/* 5. Saving Status Indicator */
+.save-indicator {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    padding: 12px 24px;
+    -webkit-backdrop-filter: blur(10px); /* Fix prefix order */
+    backdrop-filter: blur(10px);
+    background: rgba(26, 26, 26, 0.8); /* Keep dark background for indicator */
+    border: 1px solid var(--neon-color);
+    border-radius: 50px;
+    color: var(--neon-color);
+    font-weight: 600;
+    z-index: 9999;
+    display: none; /* Controlled by JS */
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--neon-glow);
+}
+
+/* 6. Health Indicator Styles */
+.health-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+.status-healthy { background-color: var(--success-glow); box-shadow: 0 0 8px var(--success-glow); }
+.status-warning { background-color: var(--warning-glow); box-shadow: 0 0 8px var(--warning-glow); }
+.status-error { background-color: #ff073a; box-shadow: 0 0 8px #ff073a; }

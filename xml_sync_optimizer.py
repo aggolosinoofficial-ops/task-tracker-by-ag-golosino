@@ -13,9 +13,15 @@ Usage:
 import xml.etree.ElementTree as ET
 import sys
 import os
+import time
 from datetime import datetime, timedelta
 import argparse
 import logging
+try:
+    import portalocker
+    HAS_PORTALOCKER = True
+except ImportError:
+    HAS_PORTALOCKER = False
 
 # Configure logging (minimal overhead)
 logging.basicConfig(
@@ -63,7 +69,20 @@ class XMLOptimizer:
             tree = ET.ElementTree(root)
             # Remove indentation for compact storage
             self._remove_whitespace(root)
-            tree.write(filename, encoding='utf-8', xml_declaration=True)
+
+            # Use a sidecar lock if portalocker is available to match XMLService behavior
+            lock_path = filename + ".lock"
+            lock = portalocker.Lock(lock_path, timeout=5) if HAS_PORTALOCKER else None
+
+            def perform_write():
+                tree.write(filename, encoding='utf-8', xml_declaration=True)
+
+            if lock:
+                with lock:
+                    perform_write()
+            else:
+                perform_write()
+
             logger.info(f"Saved {filename} ({os.path.getsize(filename)} bytes)")
             return True
         except Exception as e:

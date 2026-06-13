@@ -157,7 +157,7 @@ class SyncVerifier:
                     changed = True
 
                 # Check required fields
-                required = ['id', 'username', 'password_hash', 'role', 'created_at']
+                required = ['username', 'password_hash', 'role', 'created_at']
                 for field in required:
                     node = user.find(field)
                     if node is None or not node.text:

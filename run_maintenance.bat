@@ -2,6 +2,10 @@
 :: Navigate to your project directory
 cd /d "C:\xampp\htdocs\itech55\task-tracker-by-ag-golosino"
 
+:: Clear environment variables that cause <prefix> errors
+set PYTHONHOME=
+set PYTHONPATH=
+
 :: Create a log file if it doesn't exist
 echo --- Maintenance Started: %date% %time% --- >> maintenance.log
 

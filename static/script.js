@@ -1,5 +1,5 @@
 // OPTIMIZATION: Global state tracking to prevent memory leaks
-const state = {
+const appState = {
     currentPage: 1,
     pageSize: 50,
     totalPages: 1,
@@ -8,6 +8,7 @@ const state = {
     sortOrder: 'descending'
 };
 let taskXmlDoc = null;
+let autoSaveTimeout = null;
 
 /**
  * Helper to highlight matching text for UI search
@@ -40,10 +41,13 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
     try {
         // Optimization: Only fetch from server if we don't have data yet or explicitly forced
         if (!taskXmlDoc || forceFetch) {
+            if (loader) loader.style.display = 'block';
             const xmlResponse = await fetch(apiEndpoint, { cache: 'no-store' });
             const xmlText = await xmlResponse.text();
             const parser = new DOMParser();
             taskXmlDoc = parser.parseFromString(xmlText, "application/xml");
+            // Clear local search/filter if forcing a fresh fetch from server
+            if (forceFetch && !tasksToRender) document.getElementById('taskSearchInput').value = '';
         }
 
         // Use provided tasks (filtered) or all tasks from the XML
@@ -154,6 +158,42 @@ function applyFilters() {
     renderTasksModern(filtered, false);
 }
 
+/**
+ * Triggers a debounced auto-save for the task currently in the edit modal
+ */
+function triggerAutoSave() {
+    const id = document.getElementById('editTaskId').value;
+    if (!id) return;
+
+    // Clear existing timer
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+
+    // Set new timer (1.5 seconds delay)
+    autoSaveTimeout = setTimeout(() => {
+        const title = document.getElementById('editTitle').value.trim();
+        const description = document.getElementById('editDescription').value.trim();
+        const priority = document.getElementById('editPriority').value;
+        const dueDate = document.getElementById('editDueDate').value;
+
+        // Don't auto-save if title is empty
+        if (!title) return;
+
+        fetchJsonSafe(`/edit_task/${id}`, {
+            method: 'POST',
+            body: JSON.stringify({ title, description, priority, due_date: dueDate })
+        }).then(res => {
+            if (res.success) {
+                // Silently refresh the XML data so the background UI is current
+                // We pass true to forceFetch to ensure the cache is updated
+                renderTasksModern(null, true);
+                document.dispatchEvent(new CustomEvent('taskUpdated'));
+            }
+        }).catch(err => {
+            console.warn('Auto-save background sync failed:', err.message);
+        });
+    }, 1500);
+}
+
 // Initialize on page load - check if DOM is ready
 function initializeTaskForm() {
     const taskForm = document.getElementById('taskForm');
@@ -172,6 +212,14 @@ function initializeTaskForm() {
             saveEdit();
         });
         editTaskForm._initialized = true;
+
+        // Attach auto-save listeners to edit fields
+        const autoSaveFields = ['editTitle', 'editDescription', 'editPriority', 'editDueDate'];
+        autoSaveFields.forEach(fieldId => {
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            el.addEventListener(el.tagName === 'SELECT' || el.type === 'date' ? 'change' : 'input', triggerAutoSave);
+        });
     }
 }
 
@@ -195,13 +243,13 @@ function handleTaskListClick(event) {
     const header = event.target.closest('.sort-header');
     if (header) {
         const column = header.dataset.column;
-        if (state.sortBy === column) {
-            state.sortOrder = state.sortOrder === 'ascending' ? 'descending' : 'ascending';
+        if (appState.sortBy === column) {
+            appState.sortOrder = appState.sortOrder === 'ascending' ? 'descending' : 'ascending';
         } else {
-            state.sortBy = column;
-            state.sortOrder = 'ascending';
+            appState.sortBy = column;
+            appState.sortOrder = 'ascending';
         }
-        renderTasksWithXSLT(state.sortBy, state.sortOrder);
+        renderTasksModern(); // Refresh with current sort state
         return;
     }
 
@@ -293,18 +341,68 @@ function animateValue(id, start, end, duration) {
 
 function updateDashboardSummary() {
     // Fetch real stats from server instead of counting DOM elements (which breaks with pagination)
-    fetch('/api/insights', {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
+    fetchJsonSafe('/api/insights')
     .then(stats => {
         if (!stats) return;
+        // Update Dashboard Summary Cards
         animateValue('total-count', 0, stats.total_active || 0, 1000);
         animateValue('completed-count', 0, stats.completed || 0, 1000);
         animateValue('pending-count', 0, stats.pending || 0, 1000);
         animateValue('archived-count', 0, stats.archived || 0, 1000);
+
+        // Update Insights Page specific stats if they exist
+        const rateEl = document.getElementById('completion-rate');
+        if (rateEl) {
+            const rate = Math.round(stats.completion_rate || 0);
+            animateValue('completion-rate', 0, rate, 1000);
+            // Update progress bar if applicable
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) progressBar.style.width = `${rate}%`;
+        }
+
+        // Update High-Priority Productivity Score with color coding
+        const scoreEl = document.getElementById('productivity-score');
+        if (scoreEl) {
+            const score = Math.round(stats.productivity_score || 0);
+            animateValue('productivity-score', 0, score, 1000);
+
+            // Set performance indicator color
+            const parent = scoreEl.parentElement;
+            parent.classList.remove('perf-low', 'perf-mid', 'perf-high');
+            if (score <= 40) parent.classList.add('perf-low');
+            else if (score <= 75) parent.classList.add('perf-mid');
+            else parent.classList.add('perf-high');
+        }
     })
     .catch(err => console.error('Could not update dashboard summary:', err));
+}
+
+/**
+ * Periodically checks system health (lingering locks, storage status)
+ */
+function checkSystemHealth() {
+    const indicator = document.getElementById('healthStatus');
+    if (!indicator) return;
+
+    fetchJsonSafe('/api/health')
+        .then(health => {
+            indicator.classList.remove('status-healthy', 'status-warning', 'status-error');
+            
+            if (health.locks > 0 && health.status.includes('Warning')) {
+                indicator.classList.add('status-warning');
+                indicator.title = 'Warning: Active or lingering file locks detected.';
+            } else if (health.status === 'Healthy') {
+                indicator.classList.add('status-healthy');
+                indicator.title = 'System Healthy: Storage synchronized.';
+            } else {
+                indicator.classList.add('status-error');
+                indicator.title = 'Error: Storage issues detected.';
+            }
+        })
+        .catch(() => {
+            indicator.classList.add('status-error');
+            indicator.title = 'Cannot connect to health service.';
+        });
 }
 
 function createTaskElement(task) {
@@ -441,11 +539,10 @@ function addTask() {
     const submitBtn = document.querySelector('#taskForm button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
 
-    fetch('/add_task', {
+    fetchJsonSafe('/add_task', {
         method: 'POST',
         body: JSON.stringify({ title, description, priority, due_date })
     })
-    .then(r => r.json())
     .then(result => {
         if (submitBtn) submitBtn.disabled = false;
         if (result.success) {
@@ -457,9 +554,9 @@ function addTask() {
             showNotification('✗ Error: ' + result.error, 'error');
         }
     })
-    .catch(() => {
+    .catch((err) => {
         if (submitBtn) submitBtn.disabled = false;
-        showNotification('✗ Network error.', 'error');
+        showNotification('✗ Error: ' + err.message, 'error');
     });
 }
 
@@ -472,11 +569,10 @@ function quickAddTask() {
         return;
     }
     
-    fetch('/add_task', {
+    fetchJsonSafe('/add_task', {
         method: 'POST',
         body: JSON.stringify({ title, description: '', priority: 'Medium' })
     })
-    .then(r => r.json())
     .then(result => {
         if (result.success) {
             input.value = '';
@@ -489,11 +585,28 @@ function quickAddTask() {
             showNotification('✗ ' + result.error, 'error');
         }
     })
-    .catch(() => showNotification('✗ Network error', 'error'));
+    .catch((err) => showNotification('✗ Error: ' + err.message, 'error'));
+}
+
+/**
+ * UI helper to show/hide the Saving pill
+ */
+function toggleSavingIndicator(show) {
+    let el = document.getElementById('saveIndicator');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'saveIndicator';
+        el.className = 'save-indicator';
+        el.innerHTML = '<span>⚡</span> Saving...';
+        document.body.appendChild(el);
+    }
+    el.style.display = show ? 'flex' : 'none';
 }
 
 async function fetchJsonSafe(url, options = {}) {
     // Automatically inject CSRF token for POST/PUT/DELETE requests
+    const isMutation = options.method && options.method !== 'GET';
+    
     if (options.method && options.method !== 'GET') {
         const token = await getCsrfTokenOrThrow();
         options.headers = {
@@ -503,10 +616,21 @@ async function fetchJsonSafe(url, options = {}) {
             'X-Requested-With': 'XMLHttpRequest'
         };
     }
-    return fetch(url, options).then(async (r) => {
-        if (!r.ok) throw new Error('Network error');
-        return r.json();
-    });
+    
+    if (isMutation) toggleSavingIndicator(true);
+    
+    try {
+        const r = await fetch(url, options);
+        const data = await r.json();
+        if (!r.ok) {
+            throw new Error(data.error || `Server Error (${r.status})`);
+        }
+        return data;
+    } catch (err) {
+        throw new Error(err.message || "Network request failed");
+    } finally {
+        if (isMutation) toggleSavingIndicator(false);
+    }
 }
 
 async function getCsrfTokenOrThrow() {
@@ -525,21 +649,18 @@ function toggleTask(id, currentStatus) {
 
     // If completing, check if user wants to archive it right away
     if (newStatus === 'completed') {
-        const choice = confirm('Task completed! Move to archive?');
-        if (choice) {
+        if (confirm('Task completed! Move to archive?')) {
             // First update status to completed, then archive
-            fetchJsonSafe(`/edit_task/${id}`, {
+            return fetchJsonSafe(`/edit_task/${id}`, {
                 method: 'POST',
                 body: JSON.stringify({ status: 'completed' })
             }).then(() => {
-                // We bypass the confirm in deleteTask by calling the API directly
-                fetchJsonSafe(`/archive_task/${id}`, { method: 'POST' }).then(() => {
+                return fetchJsonSafe(`/archive_task/${id}`, { method: 'POST' }).then(() => {
                     showNotification('✓ Task completed and archived', 'success');
                     renderTasksModern(null, true);
                     document.dispatchEvent(new CustomEvent('taskUpdated'));
                 });
             });
-            return;
         }
     } else {
         if (!confirm('Mark as pending?')) return;
@@ -556,23 +677,24 @@ function toggleTask(id, currentStatus) {
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to update status'), 'error');
         }
-    });
+    })
+    .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
 
-function restoreTask(id) {
-    fetchJsonSafe(`/restore_task/${id}`, { method: 'POST' })
-        .then(result => {
-            if (result && result.success) {
-                showNotification('✓ Task restored!', 'success');
-                renderTasksModern(null, true);
-                document.dispatchEvent(new CustomEvent('taskUpdated'));
-            } else {
-                showNotification('✗ Error: ' + (result.error || 'Failed to restore'), 'error');
-            }
-        })
-        .catch(err => {
-            showNotification('✗ Error: ' + err.message, 'error');
-        });
+async function restoreTask(id) {
+    try {
+        const result = await fetchJsonSafe(`/restore_task/${id}`, { method: 'POST' });
+        if (result.success) {
+            showNotification('✓ Task restored!', 'success');
+            // Force re-render with fresh data from server
+            await renderTasksModern(null, true);
+            document.dispatchEvent(new CustomEvent('taskUpdated'));
+        } else {
+            showNotification('✗ Error: ' + (result.error || 'Failed to restore'), 'error');
+        }
+    } catch (err) {
+        showNotification('✗ Error: ' + err.message, 'error');
+    }
 }
 
 function toggleSelectAll(checked) {
@@ -592,7 +714,8 @@ function restoreAllTasks() {
                 renderTasksModern(null, true);
                 document.dispatchEvent(new CustomEvent('taskUpdated'));
             }
-        });
+        })
+        .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
 
 function restoreSelectedTasks() {
@@ -611,7 +734,8 @@ function restoreSelectedTasks() {
             renderTasksModern(null, true);
             document.dispatchEvent(new CustomEvent('taskUpdated'));
         }
-    });
+    })
+    .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
 
 function showEditForm(id) {
@@ -639,6 +763,9 @@ function hideEditForm(id) {
 }
 
 function saveEdit() {
+    // Cancel any pending auto-save if manual save is clicked
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+
     const id = document.getElementById('editTaskId').value;
     const title = document.getElementById('editTitle').value.trim();
     const description = document.getElementById('editDescription').value.trim();
@@ -658,7 +785,8 @@ function saveEdit() {
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to save changes'), 'error');
         }
-    });
+    })
+    .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
 
 function clearCompletedTasks() {
@@ -695,7 +823,8 @@ function deleteTask(id) {
         } else {
             showNotification('✗ Error: ' + (res.error || 'Failed to archive task'), 'error');
         }
-    });
+    })
+    .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
 
 function initializeTheme() {
@@ -725,4 +854,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('taskList') || document.getElementById('archiveList')) {
         renderTasksModern();
     }
+
+    // Health Check: Initial run and then every 30 seconds
+    checkSystemHealth();
+    setInterval(checkSystemHealth, 30000);
 });

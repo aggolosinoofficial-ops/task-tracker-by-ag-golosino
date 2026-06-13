@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Advanced XML/XSD/XPath Demonstration Tool
-Comprehensive exploration of XML validation, XPath queries, and schema handling
+Advanced XML/XSD/XPath Demonstration Tool: Comprehensive exploration of XML validation, XPath queries, and schema handling
 """
 
-import xml.etree.ElementTree as ET
+from lxml import etree  # type: ignore
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -27,9 +26,16 @@ class AdvancedXMLHandler:
 
         self.tree = None
         self.root = None
+        # Centralized Namespace Registry
         self.namespaces = {
-            'xs': 'http://www.w3.org/2001/XMLSchema'
+            'xs': 'http://www.w3.org/2001/XMLSchema',
+            '': 'http://atheena.tracker/schema/tasks',   # Empty string = Default Namespace
+            'meta': 'http://atheena.tracker/schema/metadata' # Example secondary namespace
         }
+        # Register namespaces globally to control prefixes in serialized output
+        for prefix, uri in self.namespaces.items():
+            etree.register_namespace(prefix, uri)
+
         # Ensure data and schema directories exist
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.schema_dir.mkdir(parents=True, exist_ok=True)
@@ -39,21 +45,22 @@ class AdvancedXMLHandler:
     def load_xml(self) -> bool:
         """Load XML document"""
         try:
-            self.tree = ET.parse(str(self.xml_path))
+            self.tree = etree.parse(str(self.xml_path))
             self.root = self.tree.getroot()
             print(f"✓ XML loaded from {self.xml_path}")
             return True
         except FileNotFoundError:
             print(f"❌ XML file not found: {self.xml_path}")
             return False
-        except ET.ParseError as e:
+        except etree.XMLSyntaxError as e:
             print(f"❌ XML Parse Error: {e}")
             return False
     
     def save_xml(self) -> bool:
         """Save XML document"""
         try:
-            self.tree.write(str(self.xml_path), encoding='utf-8', xml_declaration=True)
+            if self.tree is not None:
+                self.tree.write(str(self.xml_path), encoding='utf-8', xml_declaration=True, pretty_print=True)
             print(f"✓ XML saved to {self.xml_path}")
             return True
         except Exception as e:
@@ -80,7 +87,7 @@ class AdvancedXMLHandler:
         
         # Try lxml (preferred)
         try:
-            from lxml import etree
+            from lxml import etree  # type: ignore
             
             try:
                 xsd_doc = etree.parse(str(self.xsd_path))
@@ -114,55 +121,62 @@ class AdvancedXMLHandler:
     
     # ==================== XPATH QUERIES ====================
     
-    def xpath_get_all_tasks(self) -> List[ET.Element]:
+    def _get_ns_map(self):
+        """Internal helper to ensure we have a prefix for XPath logic."""
+        # XPath cannot query a default namespace without a prefix.
+        # We map the empty prefix to 'dns' (default namespace) for internal queries.
+        n = self.namespaces.copy()
+        if '' in n:
+            n['dns'] = n.pop('')
+        return n
+
+    def xpath_get_all_tasks(self) -> List[etree._Element]:
         """XPath: Get all task elements"""
-        return self.root.findall('.//task')
+        if self.root is None: return []
+        ns = self._get_ns_map()
+        return self.root.xpath('.//dns:task', namespaces=ns)
     
-    def xpath_get_tasks_by_status(self, status: str) -> List[ET.Element]:
+    def xpath_get_tasks_by_status(self, status: str) -> List[etree._Element]:
         """XPath: Get tasks filtered by status"""
-        tasks = []
-        for task in self.root.findall('.//task'):
-            if task.findtext('status') == status:
-                tasks.append(task)
-        return tasks
+        if self.root is None: return []
+        ns = self._get_ns_map()
+        return self.root.xpath('.//dns:task[dns:status=$s]', namespaces=ns, s=status)
     
-    def xpath_get_tasks_by_user(self, user_id: int) -> List[ET.Element]:
+    def xpath_get_tasks_by_user(self, user_id: int) -> List[etree._Element]:
         """XPath: Get tasks filtered by user_id"""
-        tasks = []
-        for task in self.root.findall('.//task'):
-            if int(task.findtext('user_id', 0)) == user_id:
-                tasks.append(task)
-        return tasks
+        if self.root is None: return []
+        ns = self._get_ns_map()
+        # Using XPath expression for performance and clarity
+        return self.root.xpath('.//dns:task[dns:user_id=$u]', namespaces=ns, u=str(user_id))
     
     def xpath_get_task_ids(self) -> List[int]:
         """XPath: Get all task IDs"""
-        ids = []
-        for task_id in self.root.findall('.//task/id'):
-            try:
-                ids.append(int(task_id.text))
-            except (ValueError, TypeError):
-                pass
-        return ids
+        if self.root is None: return []
+        ns = self._get_ns_map()
+        id_nodes = self.root.xpath('.//dns:task/dns:id/text()', namespaces=ns)
+        return [int(i) for i in id_nodes if str(i).isdigit()]
     
-    def xpath_get_task_by_id(self, task_id: int) -> Optional[ET.Element]:
+    def xpath_get_task_by_id(self, task_id: int) -> Optional[etree._Element]:
         """XPath: Get specific task by ID"""
-        for task in self.root.findall('.//task'):
-            if int(task.findtext('id', 0)) == task_id:
-                return task
-        return None
+        if self.root is None: return None
+        ns = self._get_ns_map()
+        results = self.root.xpath('.//dns:task[dns:id=$i]', namespaces=ns, i=str(task_id))
+        return results[0] if results else None
     
-    def xpath_search_title(self, keyword: str) -> List[ET.Element]:
+    def xpath_search_title(self, keyword: str) -> List[etree._Element]:
         """XPath: Search tasks by title keyword"""
         tasks = []
-        for task in self.root.findall('.//task'):
-            title = task.findtext('title', '').lower()
-            if keyword.lower() in title:
-                tasks.append(task)
-        return tasks
+        if self.root is None: return []
+        ns = self._get_ns_map()
+        # Use XPath to filter directly for efficiency and namespace awareness
+        query = f".//dns:task[contains(translate(dns:title, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), $k)]"
+        return self.root.xpath(query, namespaces=ns, k=keyword.lower())
     
     def xpath_count_tasks(self) -> int:
         """XPath: Count total tasks"""
-        return len(self.root.findall('.//task'))
+        if self.root is None: return 0
+        ns = self._get_ns_map()
+        return len(self.root.xpath('.//dns:task', namespaces=ns))
     
     # ==================== SCHEMA ANALYSIS ====================
     
@@ -179,33 +193,32 @@ class AdvancedXMLHandler:
             return schema_info
         
         try:
-            schema_tree = ET.parse(str(self.xsd_path))
+            schema_tree = etree.parse(str(self.xsd_path))
             schema_root = schema_tree.getroot()
             
             # Find all elements
-            for elem in schema_root.findall('.//xs:element', self.namespaces):
+            for elem in schema_root.findall(etree.QName(self.namespaces['xs'], 'element')):
                 name = elem.get('name')
                 elem_type = elem.get('type')
                 min_occurs = elem.get('minOccurs')
                 max_occurs = elem.get('maxOccurs')
                 
                 schema_info['elements'].append({
-                    'name': name,
-                    'type': elem_type,
-                    'minOccurs': min_occurs,
-                    'maxOccurs': max_occurs
+                    'name': name, 'type': elem_type,
+                    'minOccurs': min_occurs, 'maxOccurs': max_occurs
                 })
             
             # Find all complex types
-            for ctype in schema_root.findall('.//xs:complexType', self.namespaces):
+            for ctype in schema_root.findall(etree.QName(self.namespaces['xs'], 'complexType')):
                 name = ctype.get('name')
                 schema_info['complex_types'].append(name)
             
             # Find all simple types (enumerations)
-            for stype in schema_root.findall('.//xs:simpleType', self.namespaces):
+            for stype in schema_root.findall(etree.QName(self.namespaces['xs'], 'simpleType')):
                 name = stype.get('name')
                 enums = []
-                for enum in stype.findall('.//xs:enumeration', self.namespaces):
+                # Use namespace-aware findall for enumerations within simpleType
+                for enum in stype.findall(etree.QName(self.namespaces['xs'], 'enumeration')):
                     value = enum.get('value')
                     enums.append(value)
                 
@@ -225,15 +238,20 @@ class AdvancedXMLHandler:
         Validates a task dictionary against the XSD schema before insertion.
         """
         try:
-            from lxml import etree
+            from lxml import etree  # type: ignore
             
             # Create a dummy root to satisfy the schema structure
-            root = etree.Element("tasks")
-            task = etree.SubElement(root, "task")
+            default_ns_uri = self.namespaces.get('')
+            if not default_ns_uri:
+                print("❌ Error: Default namespace URI not defined for task validation.")
+                return False
+
+            root = etree.Element(etree.QName(default_ns_uri, "tasks"))
+            task = etree.SubElement(root, etree.QName(default_ns_uri, "task"))
             
             # Map dict keys to XML elements
             for key, value in task_data.items():
-                child = etree.SubElement(task, key)
+                child = etree.SubElement(task, etree.QName(default_ns_uri, key))
                 child.text = str(value) if value is not None else ""
 
             # Load schema
@@ -264,13 +282,17 @@ class AdvancedXMLHandler:
         """Create new task element"""
         try:
             # Find max ID
-            max_id = 0
-            for task_id in self.root.findall('.//task/id'):
+            max_id = 0 # Initialize max_id
+            if self.root is None: return False
+            ns = self._get_ns_map()
+            # Use namespace-aware XPath to find all task IDs
+            for task_id_el in self.root.xpath('.//dns:task/dns:id', namespaces=ns):
                 try:
-                    current_id = int(task_id.text)
+                    current_id = int(task_id_el.text)
                     if current_id > max_id:
                         max_id = current_id
                 except (ValueError, TypeError):
+                    # Handle cases where ID might not be a valid integer
                     pass
             
             # Pre-validation step
@@ -282,20 +304,26 @@ class AdvancedXMLHandler:
             if not self.validate_task_data(task_data):
                 return False
 
-            # Create task element
-            task_elem = ET.Element('task')
+            # Create task element in the default namespace
+            default_ns_uri = self.namespaces.get('')
+            if not default_ns_uri:
+                print("❌ Error: Default namespace URI not defined for task creation.")
+                return False
+
+            task_elem = etree.Element(etree.QName(default_ns_uri, 'task'))
             
-            # Add fields
-            ET.SubElement(task_elem, 'id').text = str(task_data['id'])
-            ET.SubElement(task_elem, 'user_id').text = str(task_data.get('user_id', 1))
-            ET.SubElement(task_elem, 'title').text = task_data.get('title', 'Untitled')
-            ET.SubElement(task_elem, 'description').text = task_data.get('description', '')
-            ET.SubElement(task_elem, 'status').text = task_data.get('status', 'pending')
-            ET.SubElement(task_elem, 'created_at').text = task_data.get('created_at', datetime.now().isoformat())
-            ET.SubElement(task_elem, 'priority').text = task_data['priority']
-            ET.SubElement(task_elem, 'due_date').text = task_data['due_date']
+            # Add fields using QName for namespace awareness
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'id')).text = str(task_data['id'])
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'user_id')).text = str(task_data.get('user_id', 1))
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'title')).text = task_data.get('title', 'Untitled')
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'description')).text = task_data.get('description', '')
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'status')).text = task_data.get('status', 'pending')
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'created_at')).text = task_data.get('created_at', datetime.now().isoformat())
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'priority')).text = task_data['priority']
+            etree.SubElement(task_elem, etree.QName(default_ns_uri, 'due_date')).text = task_data['due_date']
             
-            self.root.append(task_elem)
+            if self.root is not None:
+                self.root.append(task_elem)
             print(f"✓ Task created with ID {task_data['id']}")
             return True
             
@@ -310,14 +338,18 @@ class AdvancedXMLHandler:
         if task_elem is None:
             return None
         
-        return {
-            'id': task_elem.findtext('id'),
-            'user_id': task_elem.findtext('user_id'),
-            'title': task_elem.findtext('title'),
-            'description': task_elem.findtext('description'),
-            'status': task_elem.findtext('status'),
-            'created_at': task_elem.findtext('created_at')
-        }
+        # Use namespace-aware findtext for child elements
+        default_ns_uri = self.namespaces.get('')
+        if not default_ns_uri:
+            print("❌ Error: Default namespace URI not defined for reading task.")
+            return None
+
+        # Extract data using QName for namespace awareness
+        data = {}
+        for child in task_elem:
+            tag_name = child.tag.localname if isinstance(child.tag, etree.QName) else child.tag
+            data[tag_name] = child.text
+        return data
     
     def update_task(self, task_id: int, updates: Dict[str, Any]) -> bool:
         """Update task fields"""
@@ -329,7 +361,15 @@ class AdvancedXMLHandler:
         
         # Create a full representation of the task for validation
         # Start with existing values
-        task_data = {child.tag: child.text for child in task_elem}
+        default_ns_uri = self.namespaces.get('')
+        if not default_ns_uri:
+            print("❌ Error: Default namespace URI not defined for updating task.")
+            return False
+
+        task_data = {}
+        for child in task_elem:
+            tag_name = child.tag.localname if isinstance(child.tag, etree.QName) else child.tag
+            task_data[tag_name] = child.text
         # Merge with proposed updates
         task_data.update(updates)
         task_data['id'] = task_id  # Ensure the ID remains consistent
@@ -341,12 +381,14 @@ class AdvancedXMLHandler:
 
         try:
             # If valid, apply changes to the actual XML tree
+            # Use namespace-aware find and SubElement
             for field, value in updates.items():
-                elem = task_elem.find(field)
+                node_qname = etree.QName(default_ns_uri, field)
+                elem = task_elem.find(node_qname)
                 if elem is not None:
                     elem.text = str(value)
                 else:
-                    ET.SubElement(task_elem, field).text = str(value)
+                    etree.SubElement(task_elem, node_qname).text = str(value)
             
             # Persist changes to the file
             return self.save_xml()
@@ -364,7 +406,8 @@ class AdvancedXMLHandler:
             return False
         
         try:
-            self.root.remove(task_elem)
+            if self.root is not None:
+                self.root.remove(task_elem)
             print(f"✓ Task {task_id} deleted")
             return True
             
@@ -389,13 +432,19 @@ class AdvancedXMLHandler:
         print(f"{'ID':<5} {'User':<6} {'Title':<30} {'Description':<30} {'Status':<12} {'Created':<20}")
         print("-" * 100)
         
+        default_ns_uri = self.namespaces.get('')
+        if not default_ns_uri:
+            print("❌ Error: Default namespace URI not defined for printing tasks.")
+            return
+
         for task in tasks:
-            task_id = task.findtext('id', 'N/A')
-            user_id = task.findtext('user_id', 'N/A')
-            title = (task.findtext('title', 'N/A') or 'N/A')[:28]
-            desc = (task.findtext('description', '') or '')[:28]
-            status = task.findtext('status', 'N/A')
-            created = (task.findtext('created_at', 'N/A') or 'N/A')[-18:]
+            # Use namespace-aware findtext for child elements
+            task_id = task.findtext(etree.QName(default_ns_uri, 'id'), 'N/A')
+            user_id = task.findtext(etree.QName(default_ns_uri, 'user_id'), 'N/A')
+            title = (task.findtext(etree.QName(default_ns_uri, 'title'), 'N/A') or 'N/A')[:28]
+            desc = (task.findtext(etree.QName(default_ns_uri, 'description'), '') or '')[:28]
+            status = task.findtext(etree.QName(default_ns_uri, 'status'), 'N/A')
+            created = (task.findtext(etree.QName(default_ns_uri, 'created_at'), 'N/A') or 'N/A')[-18:]
             
             print(f"{task_id:<5} {user_id:<6} {title:<30} {desc:<30} {status:<12} {created:<20}")
     
@@ -415,10 +464,15 @@ class AdvancedXMLHandler:
         statuses = {}
         users = set()
         
+        default_ns_uri = self.namespaces.get('')
+        if not default_ns_uri:
+            print("❌ Error: Default namespace URI not defined for task statistics.")
+            return
+
         for task in tasks:
-            status = task.findtext('status', 'unknown')
-            user_id = task.findtext('user_id')
-            
+            # Use namespace-aware findtext for child elements
+            status = task.findtext(etree.QName(default_ns_uri, 'status'), 'unknown')
+            user_id = task.findtext(etree.QName(default_ns_uri, 'user_id'))
             statuses[status] = statuses.get(status, 0) + 1
             users.add(user_id)
         

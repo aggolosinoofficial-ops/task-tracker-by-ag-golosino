@@ -79,7 +79,7 @@ def create_shortcut(
     path, description, filename, arguments="", workdir="", iconpath="", iconindex=0
 ):
     import pythoncom
-    from win32com.shell import shell
+    from win32com.shell import shell  # type: ignore
 
     ilink = pythoncom.CoCreateInstance(
         shell.CLSID_ShellLink,
@@ -87,22 +87,22 @@ def create_shortcut(
         pythoncom.CLSCTX_INPROC_SERVER,
         shell.IID_IShellLink,
     )
-    ilink.SetPath(path)
-    ilink.SetDescription(description)
+    ilink.SetPath(path)  # type: ignore
+    ilink.SetDescription(description)  # type: ignore
     if arguments:
-        ilink.SetArguments(arguments)
+        ilink.SetArguments(arguments)  # type: ignore
     if workdir:
-        ilink.SetWorkingDirectory(workdir)
+        ilink.SetWorkingDirectory(workdir)  # type: ignore
     if iconpath or iconindex:
-        ilink.SetIconLocation(iconpath, iconindex)
+        ilink.SetIconLocation(iconpath, iconindex)  # type: ignore
     # now save it.
     ipf = ilink.QueryInterface(pythoncom.IID_IPersistFile)
-    ipf.Save(filename, 0)
+    ipf.Save(filename, 0)  # type: ignore
 
 
 # Support the same list of "path names" as bdist_wininst used to
 def get_special_folder_path(path_name):
-    from win32com.shell import shell, shellcon
+    from win32com.shell import shell, shellcon  # type: ignore
 
     for maybe in """
         CSIDL_COMMON_STARTMENU CSIDL_STARTMENU CSIDL_COMMON_APPDATA
@@ -126,7 +126,11 @@ def CopyTo(desc, src, dest):
             return
         except win32api.error as details:
             if details.winerror == 5:  # access denied - user not admin.
-                raise
+                print(f"ACCESS DENIED: Could not copy to {dest}.")
+                print("Please restart this script using 'Run as Administrator'.")
+                if silent:
+                    raise
+                # If not silent, we fall through to the MessageBox below
             if silent:
                 # Running silent mode - just re-raise the error.
                 raise
@@ -302,7 +306,7 @@ def RegisterPythonwin(register=True, lib_dir=None):
                         raise
     finally:
         # tell windows about the change
-        from win32com.shell import shell, shellcon
+        from win32com.shell import shell, shellcon  # type: ignore
 
         shell.SHChangeNotify(
             shellcon.SHCNE_ASSOCCHANGED, shellcon.SHCNF_IDLIST, None, None
@@ -336,7 +340,7 @@ def get_system_dir():
     try:
         import pythoncom
         import win32process
-        from win32com.shell import shell, shellcon
+        from win32com.shell import shell, shellcon  # type: ignore
 
         try:
             if win32process.IsWow64Process():
@@ -411,6 +415,7 @@ def install(lib_dir):
     # Try the system32 directory first - if that fails due to "access denied",
     # it implies a non-admin user, and we use sys.prefix
     for dest_dir in [get_system_dir(), sys.prefix]:
+        dst = ""
         # and copy some files over there
         worked = 0
         try:
@@ -714,7 +719,8 @@ def main():
         except OSError:
             # child already dead
             pass
-
+    
+    global silent, verbose
     silent = args.silent
     verbose = not args.quiet
 

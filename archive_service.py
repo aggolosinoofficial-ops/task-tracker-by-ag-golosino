@@ -9,7 +9,7 @@ class ArchiveService:
         self.archive_file = "archive_tasks" # Updated to match documentation
 
     def get_archived_task(self, task_id, user_id=None):
-        xpath = "//task[id=$tid]"
+        xpath = "//task[normalize-space(id)=$tid]"
         if user_id:
             xpath += "[user_id=$uid]"
             
@@ -25,15 +25,15 @@ class ArchiveService:
         root = tree.getroot()
         
         # Find the specific task using XPath
-        task_nodes = root.xpath("//task[id=$tid]", tid=task_id)
+        task_nodes = root.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
         if not task_nodes:
             return False, "Task not found."
         
         task_node = task_nodes[0]
         
         # Permission check: User must be creator or the assigned user
-        user_id_val = task_node.findtext('user_id')
-        assigned_to = task_node.findtext('assigned_to')
+        user_id_val = (task_node.findtext('user_id') or "").strip()
+        assigned_to = (task_node.findtext('assigned_to') or "").strip()
         if not is_admin and str(user_id) not in [user_id_val, assigned_to]:
             return False, "Permission denied."
 
@@ -66,15 +66,15 @@ class ArchiveService:
         archive_tree = self.xml.get_element_tree(self.archive_file)
         archive_root = archive_tree.getroot()
         
-        task_nodes = archive_root.xpath("//task[id=$tid]", tid=task_id)
+        task_nodes = archive_root.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
         if not task_nodes:
             return False, "Archived task not found."
             
         task_node = task_nodes[0]
         
         # Ownership check (typically based on original creator)
-        user_id_val = task_node.findtext('user_id')
-        assigned_to = task_node.findtext('assigned_to')
+        user_id_val = (task_node.findtext('user_id') or "").strip()
+        assigned_to = (task_node.findtext('assigned_to') or "").strip()
         if not is_admin and str(user_id) not in [user_id_val, assigned_to]:
             return False, "Permission denied."
             
@@ -152,5 +152,5 @@ class ArchiveService:
     def _element_to_dict(self, el):
         data = {}
         for child in el:
-            data[child.tag] = child.text
+            data[child.tag] = child.text.strip() if child.text else ""
         return data

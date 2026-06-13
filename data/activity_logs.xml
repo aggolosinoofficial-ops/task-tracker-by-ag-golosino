@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<activity_logs>
+  <log>
+    <user>admin123</user>
+    <action>User logged in</action>
+    <timestamp>2026-06-12T23:35:33.673152</timestamp>
+  </log>
+  <log>
+    <user>admin123</user>
+    <action>User logged in</action>
+    <timestamp>2026-06-13T01:38:33.567678</timestamp>
+  </log>
+  <log>
+    <user>admin123</user>
+    <action>User logged out</action>
+    <timestamp>2026-06-13T01:39:39.303585</timestamp>
+  </log>
+  <log>
+    <user>admin123</user>
+    <action>User logged in</action>
+    <timestamp>2026-06-13T01:41:34.029459</timestamp>
+  </log>
+  <log>
+    <user>admin123</user>
+    <action>User logged in</action>
+    <timestamp>2026-06-13T08:43:15.782193</timestamp>
+  </log>
+</activity_logs>

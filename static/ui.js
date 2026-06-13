@@ -1,28 +1,49 @@
 // static/ui.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Navbar Collapse Toggle (Hamburger Menu) ---
+    // --- JS Layout Optimization (Senior Dev Strategy) ---
+    function adjustNavbar() {
+        const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main') || document.querySelector('.dashboard-container');
+        if (!sidebar || !mainContent) return;
+
+        const width = window.innerWidth;
+        if (width <= 768) {
+            // Mobile / Tablet Portrait
+            sidebar.classList.add('topbar');
+            if (!sidebar.classList.contains('mobile-expanded')) sidebar.classList.remove('sidebar-hover');
+            mainContent.style.marginTop = '60px';
+        } else {
+            // Desktop
+            sidebar.classList.remove('topbar');
+            sidebar.classList.add('sidebar-hover');
+            mainContent.style.marginTop = '0';
+            mainContent.style.marginLeft = '60px';
+        }
+    }
+
+    // --- Hamburger Menu Toggle ---
     const mobileNavToggle = document.getElementById('mobileNavToggle');
-    const appSidebar = document.getElementById('appSidebar'); // Assuming your sidebar has this ID
-
-    if (mobileNavToggle && appSidebar) {
+    if (mobileNavToggle) {
         mobileNavToggle.addEventListener('click', () => {
-            appSidebar.classList.toggle('mobile-open');
-            // Optional: Toggle body overflow to prevent scrolling when sidebar is open
-            document.body.classList.toggle('no-scroll', appSidebar.classList.contains('mobile-open'));
-        });
-
-        // Close sidebar if clicking outside of it on mobile
-        document.addEventListener('click', (event) => {
-            if (window.innerWidth <= 800 && appSidebar.classList.contains('mobile-open')) {
-                // Check if the click is outside the sidebar and not on the toggle button itself
-                if (!appSidebar.contains(event.target) && !mobileNavToggle.contains(event.target)) {
-                    appSidebar.classList.remove('mobile-open');
-                    document.body.classList.remove('no-scroll');
-                }
-            }
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('mobile-expanded');
+            
+            // Change icon between Hamburger (☰) and Close (✕)
+            const icon = mobileNavToggle.querySelector('i') || mobileNavToggle;
+            icon.textContent = sidebar.classList.contains('mobile-expanded') ? '✕' : '☰';
         });
     }
+
+    // Debounced Resize Observer
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(adjustNavbar, 200);
+    });
+
+    // Run once on load
+    adjustNavbar();
 
     // --- Dark Mode Toggle with Neon Glow ---
     const darkModeToggle = document.getElementById('darkModeToggle');
@@ -70,32 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.requestAnimationFrame(step);
     }
 
-    function updateSummaryCounts() {
-        const taskCards = document.querySelectorAll('.card[data-status], .task-card[data-status]');
-        const stats = { total: 0, completed: 0, pending: 0, archived: 0 };
-        
-        // Note: Real apps would fetch this from an API, 
-        // but we'll calculate from DOM elements currently visible for immediate feedback.
-        taskCards.forEach(card => {
-            const status = card.getAttribute('data-status');
-            if (status in stats) {
-                stats[status]++;
-                if (status !== 'archived') stats.total++;
-            }
-        });
-
-        // Animate from current value to new value
-        const getVal = (id) => parseInt(document.getElementById(id)?.textContent || "0");
-
-        animateValue('total-count', getVal('total-count'), stats.total, 800);
-        animateValue('completed-count', getVal('completed-count'), stats.completed, 800);
-        animateValue('pending-count', getVal('pending-count'), stats.pending, 800);
-        animateValue('archived-count', getVal('archived-count'), stats.archived, 800);
-    }
-
     // Listen for custom event to refresh dashboard
     document.addEventListener('taskUpdated', () => {
-        updateSummaryCounts();
+        // We now rely on the API-based updateDashboardSummary in script.js
         applyRandomNeonToCards();
     });
 
@@ -126,5 +124,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initial call to sync counts
-    updateSummaryCounts();
 });

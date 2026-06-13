@@ -20,7 +20,7 @@ class User(UserMixin):
         user_id = el.get('id') or el.findtext('id')
             
         return cls(
-            id=str(user_id),
+            id=str(user_id).strip() if user_id else None,
             username=el.findtext('username', 'Unknown'),
             role=el.findtext('role', 'user')
         )

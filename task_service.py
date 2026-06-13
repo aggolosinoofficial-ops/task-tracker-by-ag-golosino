@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from lxml import etree
+from lxml import etree  # type: ignore
 
 class TaskService:
     def __init__(self, xml_service):
@@ -15,7 +15,9 @@ class TaskService:
         # Phase 3: Streaming parsing for memory efficiency
         for task_el in self.xml.iter_all(self.filename, 'task'):
             if user_id is not None:
-                if task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
+                uid = (task_el.findtext('user_id') or "").strip()
+                aid = (task_el.findtext('assigned_to') or "").strip()
+                if uid != str(user_id) and aid != str(user_id):
                     continue
             
             if count < offset:
@@ -39,8 +41,8 @@ class TaskService:
         
         fields = {
             'id': task_id,
-            'user_id': str(data['created_by']),
-            'assigned_to': str(data.get('assigned_to', data['created_by'])),
+            'user_id': str(data['user_id']),
+            'assigned_to': str(data.get('assigned_to', data['user_id'])),
             'title': data['title'],
             'description': data.get('description', ''),
             'status': 'pending',
@@ -76,13 +78,15 @@ class TaskService:
 
     def update_task(self, task_id, data, user_id, is_admin=False):
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[id=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
-        if not is_admin and task.findtext('user_id') != str(user_id) and task.findtext('assigned_to') != str(user_id):
+        uid = (task.findtext('user_id') or "").strip()
+        aid = (task.findtext('assigned_to') or "").strip()
+        if not is_admin and uid != str(user_id) and aid != str(user_id):
             return False, "Unauthorized."
 
         # Smooth Update: Just update/add tags. 
@@ -105,14 +109,16 @@ class TaskService:
     def delete_task(self, task_id, user_id, is_admin=False):
         """Permanent deletion of a task."""
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[id=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
         # Only admin or creator can hard delete
-        if not is_admin and task.findtext('user_id') != str(user_id) and task.findtext('assigned_to') != str(user_id):
+        uid = (task.findtext('user_id') or "").strip()
+        aid = (task.findtext('assigned_to') or "").strip()
+        if not is_admin and uid != str(user_id) and aid != str(user_id):
             return False, "Unauthorized."
             
         task.getparent().remove(task)
@@ -123,11 +129,11 @@ class TaskService:
         tree = self.xml.get_element_tree(self.filename)
         
         # Build an optimized XPath to select the entire set of nodes at once
-        xpath = "//task[status=$s]"
+        xpath = "//task[normalize-space(status)=$s]"
         variables = {'s': status}
         
         if not is_admin:
-            xpath += "[user_id=$uid or assigned_to=$uid]"
+            xpath += "[normalize-space(user_id)=$uid or normalize-space(assigned_to)=$uid]"
             variables['uid'] = str(user_id)
             
         for task in tree.xpath(xpath, **variables):
@@ -140,11 +146,11 @@ class TaskService:
         tree = self.xml.get_element_tree(self.filename)
         
         # Select the target set of nodes
-        xpath = "//task[status=$cs]"
+        xpath = "//task[normalize-space(status)=$cs]"
         variables = {'cs': current_status}
         
         if not is_admin:
-            xpath += "[user_id=$uid or assigned_to=$uid]"
+            xpath += "[normalize-space(user_id)=$uid or normalize-space(assigned_to)=$uid]"
             variables['uid'] = str(user_id)
             
         nodes = tree.xpath(xpath, **variables)
@@ -199,6 +205,13 @@ class TaskService:
             'Low': len([t for t in tasks if t.get('priority') == 'Low'])
         }
 
+        # High Priority Productivity Score: Completed vs Pending High Priority
+        hp_tasks = [t for t in tasks if t.get('priority') == 'High']
+        hp_completed = len([t for t in hp_tasks if t.get('status') == 'completed'])
+        hp_pending = len([t for t in hp_tasks if t.get('status') == 'pending'])
+        hp_total = hp_completed + hp_pending
+        productivity_score = round((hp_completed / hp_total * 100), 1) if hp_total > 0 else 0
+
         total_active = len(tasks)
         completed = len([t for t in tasks if t.get('status') == 'completed'])
         completion_rate = round((completed / total_active * 100), 1) if total_active > 0 else 0
@@ -221,6 +234,7 @@ class TaskService:
             'archived': len(archived),
             'daily_data': daily_data,
             'completion_rate': completion_rate,
+            'productivity_score': productivity_score,
             'avg_per_day': avg_per_day,
             'productivity_level': productivity_level
         }
@@ -250,5 +264,5 @@ class TaskService:
     def _element_to_dict(self, el):
         data = {}
         for child in el:
-            data[child.tag] = child.text
+            data[child.tag] = child.text.strip() if child.text else ""
         return data

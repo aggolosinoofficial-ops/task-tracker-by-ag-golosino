@@ -17,6 +17,13 @@
 }
 
 /* --- Core Theme Backgrounds --- */
+:root {
+    --priority-high: #ffb6c1;    /* Cotton Candy Pink */
+    --priority-medium: #a29bfe;  /* Lavender Blue */
+    --priority-low: #81ecec;     /* Mint Cyan */
+    --sidebar-bg: rgba(255, 255, 255, 0.8);
+}
+
 body {
     background: linear-gradient(135deg, #FFDAB9 0%, #FFB6C1 25%, #E6E6FA 50%, #87CEFA 100%);
     background-attachment: fixed;
@@ -44,6 +51,10 @@ body:not(.dark-mode)::after {
 body.dark-mode {
     background: linear-gradient(135deg, #191970 0%, #4B0082 25%, #2F2F2F 50%, #9400D3 100%);
     color: #f0f0f0;
+    --priority-high: #ff0058;    /* Neon Red-Pink */
+    --priority-medium: #00ffff;  /* Neon Cyan */
+    --priority-low: #32cd32;     /* Neon Lime */
+    --sidebar-bg: rgba(26, 26, 26, 0.9);
 }
 
 /* Nebula & Stars for Dark Mode */
@@ -88,9 +99,19 @@ body.dark-mode::before {
 /* Light Mode Cotton Candy Gradients */
 body:not(.dark-mode) .task-card, body:not(.dark-mode) .summary-card {
     background: linear-gradient(135deg, #ffffff 0%, #f9f0ff 100%);
-    border-left: 5px solid #a29bfe;
+    border-left: 5px solid var(--priority-medium);
     color: #2d3436; /* High contrast for readability */
 }
+
+/* Priority Specific UI Indicators */
+.task-card.priority-high { border-left-color: var(--priority-high) !important; }
+.task-card.priority-medium { border-left-color: var(--priority-medium) !important; }
+.task-card.priority-low { border-left-color: var(--priority-low) !important; }
+
+.priority-badge { color: #fff !important; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.priority-badge.priority-high { background-color: var(--priority-high); }
+.priority-badge.priority-medium { background-color: var(--priority-medium); }
+.priority-badge.priority-low { background-color: var(--priority-low); }
 
 body:not(.dark-mode) .task-card .card-title, 
 body:not(.dark-mode) .stat-card h3,
@@ -196,16 +217,20 @@ body.dark-mode .btn-delete {
 
 /* Sidebar Icon Glow on Sidebar Hover */
 .sidebar a i {
+    width: 25px;
+    text-align: center;
     transition: text-shadow 0.3s ease, transform 0.3s ease;
 }
 
 body:not(.dark-mode) .sidebar:hover a i {
     text-shadow: 0 0 10px rgba(162, 155, 254, 0.5); /* Soft Lavender Glow */
 }
+body:not(.dark-mode) .sidebar a:hover i, body:not(.dark-mode) .sidebar a:active i { text-shadow: 0 0 15px rgba(162, 155, 254, 0.8); transform: scale(1.1); }
 
 body.dark-mode .sidebar:hover a i {
     text-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.3); /* Neon Cyan Glow */
 }
+body.dark-mode .sidebar a:hover i, body.dark-mode .sidebar a:active i { text-shadow: 0 0 15px rgba(0, 255, 255, 1), 0 0 25px rgba(0, 255, 255, 0.5); transform: scale(1.1); }
 
 /* Desktop Content Offset */
 .main, .dashboard-container, #content-wrapper {
@@ -263,6 +288,7 @@ body.dark-mode .sidebar:hover a i {
 
     .sidebar a {
         display: flex;
+        align-items: center;
         width: 100%;
         padding: 15px 25px;
         opacity: 0;

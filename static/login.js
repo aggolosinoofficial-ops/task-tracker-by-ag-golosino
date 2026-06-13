@@ -14,6 +14,14 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[Login] Form handler attached');
     }
 
+    // Auto-trim username field on blur to clean up accidental spaces
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) {
+        usernameInput.addEventListener('blur', function() {
+            this.value = this.value.trim();
+        });
+    }
+
     // Setup password toggle
     setupPasswordToggle();
 });

@@ -262,7 +262,8 @@ class XMLService:
                     order = ['id', 'user_id', 'assigned_to', 'title', 'description', 'status', 'created_at', 'priority', 'due_date', 'last_updated', 'archived_at']
                     tag_name = './/*[local-name()="task"]'
                 elif "users" in filename:
-                    order = ['id', 'username', 'password_hash', 'role', 'created_at']
+                    # ID is an attribute per users.xsd, so it's not in the element order list
+                    order = ['username', 'password_hash', 'role', 'created_at']
                     tag_name = './/*[local-name()="user"]'
 
                 if order and tag_name:
@@ -346,7 +347,7 @@ class XMLService:
         for el in self.iter_all(filename, tag_name):
             found = True
             # Check both child element and attribute for legacy compatibility
-            val_el = el.findtext('id')
+            val_el = el.xpath("string(*[local-name()='id'])")
             val_attr = el.get('id')
             val = val_el or val_attr
             

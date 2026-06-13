@@ -9,7 +9,7 @@ class ArchiveService:
         self.archive_file = "archive_tasks" # Updated to match documentation
 
     def get_archived_task(self, task_id, user_id=None):
-        xpath = "//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid]"
+        xpath = "//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid or normalize-space(@id)=$tid]"
         if user_id:
             xpath += "[*[local-name()='user_id']=$uid]"
             
@@ -44,12 +44,13 @@ class ArchiveService:
         # Use deepcopy to preserve all data including attributes
         archived_node = copy.deepcopy(task_node)
 
-        # Add archived_at timestamp so the xml_sync_optimizer can prune old tasks
-        arch_ts = archived_node.find('archived_at')
-        if arch_ts is None:
-            etree.SubElement(archived_node, 'archived_at').text = datetime.now().isoformat()
+        ns = archive_root.nsmap.get(None)
+        ts_nodes = archived_node.xpath("*[local-name()='archived_at']")
+        if not ts_nodes:
+            tag = f"{{{ns}}}archived_at" if ns else "archived_at"
+            etree.SubElement(archived_node, tag).text = datetime.now().isoformat()
         else:
-            arch_ts.text = datetime.now().isoformat()
+            ts_nodes[0].text = datetime.now().isoformat()
         
         archive_root.append(archived_node)
         root.remove(task_node)
@@ -84,10 +85,9 @@ class ArchiveService:
         # Use deepcopy to ensure consistency
         restored_node = copy.deepcopy(task_node)
         
-        # Remove archived_at timestamp when moving back to active
-        arch_ts = restored_node.find('archived_at')
-        if arch_ts is not None:
-            restored_node.remove(arch_ts)
+        ts_nodes = restored_node.xpath("*[local-name()='archived_at']")
+        for ts in ts_nodes:
+            restored_node.remove(ts)
 
         tasks_root.append(restored_node)
         archive_root.remove(task_node)
@@ -131,9 +131,8 @@ class ArchiveService:
             restored_node = copy.deepcopy(node)
             
             # Remove archive-specific metadata
-            arch_ts = restored_node.find('archived_at')
-            if arch_ts is not None:
-                restored_node.remove(arch_ts)
+            for ts in restored_node.xpath("*[local-name()='archived_at']"):
+                restored_node.remove(ts)
 
             tasks_root.append(restored_node)
             archive_root.remove(node)
@@ -151,6 +150,9 @@ class ArchiveService:
 
     def _element_to_dict(self, el):
         data = {}
+        # Capture attributes to support the attribute ID format
+        for name, value in el.attrib.items():
+            data[name] = value
         for child in el:
             local_tag = etree.QName(child).localname
             data[local_tag] = child.text.strip() if child.text else ""

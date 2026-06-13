@@ -391,8 +391,8 @@ def sync_tasks():
         if current_user.role != 'admin':
             user_id_str = str(current_user.id)
             for task in root.xpath("//*[local-name()='task']"):
-                uid = (task.findtext('user_id') or "").strip()
-                aid = (task.findtext('assigned_to') or "").strip()
+                uid = task.xpath("string(*[local-name()='user_id'])").strip()
+                aid = task.xpath("string(*[local-name()='assigned_to'])").strip()
                 if uid != user_id_str and aid != user_id_str:
                     return jsonify({'success': False, 'error': 'Unauthorized: Task ownership or assignment mismatch detected.'}), 403
 

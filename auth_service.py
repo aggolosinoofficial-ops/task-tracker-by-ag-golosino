@@ -37,22 +37,18 @@ class AuthService:
             return None
             
         # Normalize username to lowercase for the search to prevent case-sensitivity issues
-        # Use normalize-space to handle any stray tabs or newlines in the XML file
         xpath = "//*[local-name()='user'][normalize-space(*[local-name()='username'])=$u]"
         users = self.xml.find_all(self.filename, xpath, u=username.lower().strip())
         
         if not users:
-            print(f"[AuthService] Login failed: User '{username}' not found in XML.")
             return None
 
         user_el = users[0]
-        # Fetch the hash using local-name() to ensure namespace compatibility
-        stored_hash = user_el.xpath("string(*[local-name()='password_hash'])")
-        if not stored_hash:
-            stored_hash = user_el.xpath("string(*[local-name()='password'])")
+        # Fetch hash using namespace-agnostic XPath. Try both tag variations.
+        hashes = user_el.xpath("*[local-name()='password_hash'] | *[local-name()='password']")
+        stored_hash = hashes[0].text if hashes else None
 
         if stored_hash is None or not str(stored_hash).strip():
-            print(f"[AuthService] Login failed: No password hash found for user '{username}'.")
             return None
 
         stored_hash = str(stored_hash).strip()
@@ -89,20 +85,20 @@ class AuthService:
         return None
 
     def get_user_by_id(self, user_id):
-        # Match id as an attribute (@id) to align with users.xsd
-        xpath = "//*[local-name()='user'][@id=$id]"
+        # Match id as an attribute (@id) or child element to support both storage formats
+        xpath = "//*[local-name()='user'][@id=$id or *[local-name()='id']=$id]"
         users = self.xml.find_all(self.filename, xpath, id=user_id)
         if users:
             return User.from_element(users[0])
         return None
 
     def username_exists(self, username):
-        xpath = "//*[local-name()='user'][*[local-name()='username']=$u]"
-        return bool(self.xml.find_all(self.filename, xpath, u=username.lower()))
+        xpath = "//*[local-name()='user'][normalize-space(*[local-name()='username'])=$u]"
+        return bool(self.xml.find_all(self.filename, xpath, u=username.lower().strip()))
 
     def create_user(self, username, password, role='user'):
         # Normalize to lowercase for consistency
-        username = username.lower()
+        username = username.lower().strip()
         
         if self.username_exists(username):
             return False, "Username already exists."

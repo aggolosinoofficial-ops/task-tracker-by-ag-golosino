@@ -86,12 +86,13 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
                 return match ? match.textContent : '';
             };
 
-            const id = getVal('id');
+            const id = task.getAttribute('id') || getVal('id');
             const title = getVal('title');
             const description = getVal('description');
-            const priority = getVal('priority');
+            const priority = getVal('priority') || 'Medium';
             const status = getVal('status');
             const dueDate = getVal('due_date');
+            const archivedAt = getVal('archived_at');
 
             const highlightedTitle = highlightText(title, searchTerm);
             const highlightedDescription = highlightText(description, searchTerm);
@@ -117,7 +118,10 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
                     </div>
                     <p class="card-text text-muted">${highlightedDescription || 'No description provided.'}</p>
                     <div class="d-flex justify-content-between align-items-center mt-3">
-                        <small class="text-secondary">📅 ${dueDate || 'No date'}</small>
+                        <div>
+                            <small class="text-secondary d-block">📅 Due: ${dueDate || 'No date'}</small>
+                            ${isArchiveView && archivedAt ? `<small class="text-info">📦 Archived: ${archivedAt.split('T')[0]}</small>` : ''}
+                        </div>
                         <div class="card-actions">
                             ${isArchiveView ? `
                                 <button type="button" class="btn btn-sm btn-edit" data-action="restore" data-task-id="${id}"><i class="fas fa-undo"></i> Restore</button>
@@ -149,12 +153,18 @@ function applyFilters() {
     const term = document.getElementById('taskSearchInput').value.toLowerCase();
     const priority = document.getElementById('priorityFilter').value;
     
-    const allTasks = Array.from(taskXmlDoc.getElementsByTagName('task'));
+    const allTasks = Array.from(taskXmlDoc.querySelectorAll('*')).filter(el => el.localName === 'task');
     
     const filtered = allTasks.filter(t => {
-        const title = t.getElementsByTagName('title')[0]?.textContent.toLowerCase() || '';
-        const desc = t.getElementsByTagName('description')[0]?.textContent.toLowerCase() || '';
-        const p = t.getElementsByTagName('priority')[0]?.textContent || 'Medium';
+        const getVal = (tag) => {
+            const match = Array.from(t.children).find(c => c.localName === tag);
+            // Check attribute first (for id) then child element
+            return t.getAttribute(tag) || (match ? match.textContent : '');
+        };
+
+        const title = (getVal('title') || '').toLowerCase();
+        const desc = (getVal('description') || '').toLowerCase();
+        const p = getVal('priority') || 'Medium';
         
         const matchesSearch = title.includes(term) || desc.includes(term);
         const matchesPriority = priority === 'All' || p === priority;
@@ -379,6 +389,24 @@ function updateDashboardSummary() {
             if (score <= 40) parent.classList.add('perf-low');
             else if (score <= 75) parent.classList.add('perf-mid');
             else parent.classList.add('perf-high');
+        }
+
+        // Update Pie Chart Colors dynamically from theme variables
+        const chartEl = document.getElementById('priorityChart');
+        if (chartEl && window.priorityChart) {
+            const style = getComputedStyle(document.body);
+            const colors = [
+                style.getPropertyValue('--priority-high').trim(),
+                style.getPropertyValue('--priority-medium').trim(),
+                style.getPropertyValue('--priority-low').trim()
+            ];
+            window.priorityChart.data.datasets[0].backgroundColor = colors;
+            window.priorityChart.data.datasets[0].data = [
+                stats.priorities.High || 0,
+                stats.priorities.Medium || 0,
+                stats.priorities.Low || 0
+            ];
+            window.priorityChart.update();
         }
     })
     .catch(err => console.error('Could not update dashboard summary:', err));
@@ -752,12 +780,19 @@ function restoreSelectedTasks() {
 function showEditForm(id) {
     if (!taskXmlDoc) return;
     
-    const tasks = Array.from(taskXmlDoc.getElementsByTagName('task'));
-    const task = tasks.find(t => t.getElementsByTagName('id')[0]?.textContent === id);
+    const tasks = Array.from(taskXmlDoc.querySelectorAll('*')).filter(el => el.localName === 'task');
+    const task = tasks.find(t => {
+        const idNode = Array.from(t.children).find(c => c.localName === 'id');
+        return (t.getAttribute('id') === id) || (idNode?.textContent === id);
+    });
     
     if (!task) return;
 
-    const getVal = (tag) => task.getElementsByTagName(tag)[0]?.textContent || '';
+    const getVal = (tag) => {
+        const children = Array.from(task.children);
+        const match = children.find(c => c.localName === tag);
+        return match ? match.textContent : '';
+    };
 
     document.getElementById('editTaskId').value = id;
     document.getElementById('editTitle').value = getVal('title');

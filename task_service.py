@@ -95,17 +95,20 @@ class TaskService:
         if not is_admin and uid != str(user_id) and aid != str(user_id):
             return False, "Unauthorized."
 
-        # Smooth Update: Just update/add tags. 
-        # XMLService.save_safely now handles the XSD ordering via XSLT automatically.
+        ns = tree.getroot().nsmap.get(None)
+        tag = lambda t: f"{{{ns}}}{t}" if ns else t
+
         for key, value in data.items():
             if value is not None:
-                node = task.find(key)
-                if node is None: node = etree.SubElement(task, key)
-                node.text = str(value)
+                nodes = task.xpath(f"*[local-name()='{key}']")
+                if nodes:
+                    nodes[0].text = str(value)
+                else:
+                    etree.SubElement(task, tag(key)).text = str(value)
         
-        last_updated = task.find('last_updated')
-        if last_updated is None: last_updated = etree.SubElement(task, 'last_updated')
-        last_updated.text = datetime.now().isoformat()
+        lu_nodes = task.xpath("*[local-name()='last_updated']")
+        if lu_nodes: lu_nodes[0].text = datetime.now().isoformat()
+        else: etree.SubElement(task, tag('last_updated')).text = datetime.now().isoformat()
 
         return self.xml.save_safely(self.filename, tree, task_id)
 
@@ -131,8 +134,10 @@ class TaskService:
         return self.xml.save_safely(self.filename, tree, task_id)
 
     def bulk_delete_tasks(self, status, user_id, is_admin=False):
-        """Deletes all tasks matching a status for a specific user using a single XPath selection."""
+        """Moves tasks to archive instead of hard deleting to preserve data for Insights."""
         tree = self.xml.get_element_tree(self.filename)
+        archive_tree = self.xml.get_element_tree("archive_tasks")
+        archive_root = archive_tree.getroot()
         
         # Build an optimized XPath to select the entire set of nodes at once
         xpath = "//*[local-name()='task'][normalize-space(*[local-name()='status'])=$s]"
@@ -142,9 +147,22 @@ class TaskService:
             xpath += "[normalize-space(*[local-name()='user_id'])=$uid or normalize-space(*[local-name()='assigned_to'])=$uid]"
             variables['uid'] = str(user_id)
             
-        for task in tree.xpath(xpath, **variables):
+        nodes = tree.xpath(xpath, **variables)
+        if not nodes:
+            return True, "No tasks found."
+
+        ns = archive_root.nsmap.get(None)
+        tag = f"{{{ns}}}archived_at" if ns else "archived_at"
+
+        for task in nodes:
+            import copy
+            archived_node = copy.deepcopy(task)
+            # Add archival metadata
+            etree.SubElement(archived_node, tag).text = datetime.now().isoformat()
+            archive_root.append(archived_node)
             task.getparent().remove(task)
             
+        self.xml.save_safely("archive_tasks", archive_tree)
         return self.xml.save_safely(self.filename, tree)
 
     def bulk_update_status(self, current_status, new_status, user_id, is_admin=False):
@@ -164,16 +182,18 @@ class TaskService:
             return True, "No tasks found to update."
             
         now_ts = datetime.now().isoformat()
+        ns = tree.getroot().nsmap.get(None)
         for node in nodes:
-            status_node = node.find('status')
-            if status_node is not None:
-                status_node.text = new_status
+            s_nodes = node.xpath("*[local-name()='status']")
+            if s_nodes:
+                s_nodes[0].text = new_status
             
-            # Ensure last_updated is refreshed
-            last_updated = node.find('last_updated')
-            if last_updated is None:
-                last_updated = etree.SubElement(node, 'last_updated')
-            last_updated.text = now_ts
+            lu_nodes = node.xpath("*[local-name()='last_updated']")
+            if lu_nodes:
+                lu_nodes[0].text = now_ts
+            else:
+                tag = f"{{{ns}}}last_updated" if ns else "last_updated"
+                etree.SubElement(node, tag).text = now_ts
             
         return self.xml.save_safely(self.filename, tree)
 
@@ -269,6 +289,9 @@ class TaskService:
 
     def _element_to_dict(self, el):
         data = {}
+        # Capture attributes (like id if stored as <task id="..">)
+        for name, value in el.attrib.items():
+            data[name] = value
         for child in el:
             local_tag = etree.QName(child).localname
             data[local_tag] = child.text.strip() if child.text else ""

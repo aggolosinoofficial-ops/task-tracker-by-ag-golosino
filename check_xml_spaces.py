@@ -1,5 +1,5 @@
 import os
-from lxml import etree
+from lxml import etree  # type: ignore
 from pathlib import Path
 
 def check_spaces_in_xml():

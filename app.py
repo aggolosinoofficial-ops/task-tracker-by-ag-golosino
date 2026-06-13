@@ -24,11 +24,28 @@ csrf = CSRFProtect(app)
 # If cookies are missing, Flask-WTF will return HTML 400; instead, keep XHR JSON consistent.
 @app.after_request
 def add_header(resp):
-    """Add headers to prevent caching of API responses for real-time updates."""
+    # Security: Prevent MIME type sniffing
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    
+    # Security: Minimize information leaked in the Server header
+    resp.headers["Server"] = "Flask"
+
+    # Compatibility: Ensure charset is explicitly set to utf-8 for text-based responses
+    if resp.mimetype and ("text" in resp.mimetype or "json" in resp.mimetype or "xml" in resp.mimetype):
+        if "charset" not in resp.headers.get("Content-Type", "").lower():
+            resp.headers["Content-Type"] = f"{resp.mimetype}; charset=utf-8"
+
+    # Performance & Caching Logic
     if request.path.startswith('/api/'):
+        # Dynamic API responses should not be cached
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
+    elif request.path.startswith('/static/') or request.path.startswith('/schema/'):
+        # Performance: Aggressive caching for static resources and schemas
+        # 31536000 seconds = 1 year
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        
     return resp
 
 def shutdown_handler(signal_received, frame):
@@ -121,7 +138,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
-@csrf.exempt
+@csrf.exempt # Exempt registration from CSRF, as it's a public endpoint
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -295,7 +312,10 @@ def get_raw_tasks():
     if current_user.role != 'admin':
         user_id = str(current_user.id)
         # Filter the tree in memory before sending to frontend
-        xpath_filter = f"//task[normalize-space(user_id)!='{user_id}' and normalize-space(assigned_to)!='{user_id}']"
+        xpath_filter = (
+            f"//*[local-name()='task'][not(normalize-space(*[local-name()='user_id'])='{user_id}') "
+            f"and not(normalize-space(*[local-name()='assigned_to'])='{user_id}')]"
+        )
         for task in root.xpath(xpath_filter):
             task.getparent().remove(task)
             
@@ -318,7 +338,10 @@ def get_raw_archive():
     
     if current_user.role != 'admin':
         user_id = str(current_user.id)
-        xpath_filter = f"//task[normalize-space(user_id)!='{user_id}' and normalize-space(assigned_to)!='{user_id}']"
+        xpath_filter = (
+            f"//*[local-name()='task'][not(normalize-space(*[local-name()='user_id'])='{user_id}') "
+            f"and not(normalize-space(*[local-name()='assigned_to'])='{user_id}')]"
+        )
         for task in root.xpath(xpath_filter):
             task.getparent().remove(task)
             
@@ -367,7 +390,7 @@ def sync_tasks():
         # SECURITY CHECK: If not admin, verify all tasks belong to current_user
         if current_user.role != 'admin':
             user_id_str = str(current_user.id)
-            for task in root.xpath("//task"):
+            for task in root.xpath("//*[local-name()='task']"):
                 uid = (task.findtext('user_id') or "").strip()
                 aid = (task.findtext('assigned_to') or "").strip()
                 if uid != user_id_str and aid != user_id_str:
@@ -380,12 +403,15 @@ def sync_tasks():
         if current_user.role != 'admin':
             user_id_str = str(current_user.id)
             # 1. Identify and remove existing tasks belonging to this user in the master file
-            xpath_remove = f"//task[normalize-space(user_id)='{user_id_str}' or normalize-space(assigned_to)='{user_id_str}']"
+            xpath_remove = (
+                f"//*[local-name()='task'][normalize-space(*[local-name()='user_id'])='{user_id_str}' " 
+                f"or normalize-space(*[local-name()='assigned_to'])='{user_id_str}']"
+            )
             for old_task in full_root.xpath(xpath_remove):
                 full_root.remove(old_task)
             
             # 2. Append the new/edited tasks received from the frontend
-            for new_task in root.xpath("//task"):
+            for new_task in root.xpath("//*[local-name()='task']"):
                 full_root.append(new_task)
             
             save_tree = full_tree

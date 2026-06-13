@@ -15,8 +15,8 @@ class TaskService:
         # Phase 3: Streaming parsing for memory efficiency
         for task_el in self.xml.iter_all(self.filename, 'task'):
             if user_id is not None:
-                uid = (task_el.findtext('user_id') or "").strip()
-                aid = (task_el.findtext('assigned_to') or "").strip()
+                uid = task_el.xpath("string(*[local-name()='user_id'])").strip()
+                aid = task_el.xpath("string(*[local-name()='assigned_to'])").strip() or uid
                 if uid != str(user_id) and aid != str(user_id):
                     continue
             
@@ -36,6 +36,9 @@ class TaskService:
         tree = self.xml.get_element_tree(self.filename)
         root = tree.getroot()
         
+        ns = root.nsmap.get(None)
+        tag = lambda t: f"{{{ns}}}{t}" if ns else t
+
         task_id = self.xml.get_next_id(self.filename, "task")
         new_task = etree.SubElement(root, "task")
         
@@ -53,7 +56,7 @@ class TaskService:
         }
         
         for key, val in fields.items():
-            el = etree.SubElement(new_task, key)
+            el = etree.SubElement(new_task, tag(key))
             el.text = val
             
         return self.xml.save_safely(self.filename, tree, task_id)
@@ -62,30 +65,33 @@ class TaskService:
         """Retrieves archived tasks. Uses 'archive_tasks' to match ArchiveService naming."""
         tasks = []
         # Using streaming iterator for efficiency
-        for task_el in self.xml.iter_all("archive_tasks", 'task'):
-            if user_id and task_el.findtext('user_id') != str(user_id) and task_el.findtext('assigned_to') != str(user_id):
-                continue
+        for task_el in self.xml.iter_all("archive_tasks", "task"):
+            if user_id is not None:
+                uid = task_el.xpath("string(*[local-name()='user_id'])").strip()
+                aid = task_el.xpath("string(*[local-name()='assigned_to'])").strip() or uid
+                if uid != str(user_id) and aid != str(user_id):
+                    continue
             tasks.append(self._element_to_dict(task_el))
         return tasks
 
     def get_task_by_id(self, task_id, user_id=None):
-        xpath = "//task[id=$tid]"
+        xpath = "//*[local-name()='task'][*[local-name()='id']=$tid or @id=$tid]"
         if user_id:
-            xpath += "[user_id=$uid or assigned_to=$uid]"
+            xpath += "[*[local-name()='user_id']=$uid or *[local-name()='assigned_to']=$uid]"
         
         nodes = self.xml.find_all(self.filename, xpath, tid=task_id, uid=str(user_id))
         return self._element_to_dict(nodes[0]) if nodes else None
 
     def update_task(self, task_id, data, user_id, is_admin=False):
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid or normalize-space(@id)=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
-        uid = (task.findtext('user_id') or "").strip()
-        aid = (task.findtext('assigned_to') or "").strip()
+        uid = task.xpath("string(*[local-name()='user_id'])").strip()
+        aid = task.xpath("string(*[local-name()='assigned_to'])").strip()
         if not is_admin and uid != str(user_id) and aid != str(user_id):
             return False, "Unauthorized."
 
@@ -109,15 +115,15 @@ class TaskService:
     def delete_task(self, task_id, user_id, is_admin=False):
         """Permanent deletion of a task."""
         tree = self.xml.get_element_tree(self.filename)
-        task_nodes = tree.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
+        task_nodes = tree.xpath("//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid or normalize-space(@id)=$tid]", tid=task_id)
         
         if not task_nodes:
             return False, "Task not found."
         
         task = task_nodes[0]
         # Only admin or creator can hard delete
-        uid = (task.findtext('user_id') or "").strip()
-        aid = (task.findtext('assigned_to') or "").strip()
+        uid = task.xpath("string(*[local-name()='user_id'])").strip()
+        aid = task.xpath("string(*[local-name()='assigned_to'])").strip()
         if not is_admin and uid != str(user_id) and aid != str(user_id):
             return False, "Unauthorized."
             
@@ -129,11 +135,11 @@ class TaskService:
         tree = self.xml.get_element_tree(self.filename)
         
         # Build an optimized XPath to select the entire set of nodes at once
-        xpath = "//task[normalize-space(status)=$s]"
+        xpath = "//*[local-name()='task'][normalize-space(*[local-name()='status'])=$s]"
         variables = {'s': status}
         
         if not is_admin:
-            xpath += "[normalize-space(user_id)=$uid or normalize-space(assigned_to)=$uid]"
+            xpath += "[normalize-space(*[local-name()='user_id'])=$uid or normalize-space(*[local-name()='assigned_to'])=$uid]"
             variables['uid'] = str(user_id)
             
         for task in tree.xpath(xpath, **variables):
@@ -146,11 +152,11 @@ class TaskService:
         tree = self.xml.get_element_tree(self.filename)
         
         # Select the target set of nodes
-        xpath = "//task[normalize-space(status)=$cs]"
+        xpath = "//*[local-name()='task'][normalize-space(*[local-name()='status'])=$cs]"
         variables = {'cs': current_status}
         
         if not is_admin:
-            xpath += "[normalize-space(user_id)=$uid or normalize-space(assigned_to)=$uid]"
+            xpath += "[normalize-space(*[local-name()='user_id'])=$uid or normalize-space(*[local-name()='assigned_to'])=$uid]"
             variables['uid'] = str(user_id)
             
         nodes = tree.xpath(xpath, **variables)
@@ -244,8 +250,8 @@ class TaskService:
         # Optimization: Use streaming for search to remain memory efficient
         for task_el in self.xml.iter_all(self.filename, 'task'):
             if user_id:
-                uid_val = task_el.findtext('user_id')
-                at_val = task_el.findtext('assigned_to')
+                uid_val = task_el.xpath("string(*[local-name()='user_id'])")
+                at_val = task_el.xpath("string(*[local-name()='assigned_to'])")
                 if uid_val != str(user_id) and at_val != str(user_id):
                     continue
             
@@ -264,5 +270,6 @@ class TaskService:
     def _element_to_dict(self, el):
         data = {}
         for child in el:
-            data[child.tag] = child.text.strip() if child.text else ""
+            local_tag = etree.QName(child).localname
+            data[local_tag] = child.text.strip() if child.text else ""
         return data

@@ -141,7 +141,7 @@ class SyncVerifier:
                 # Migration: Move ID from element to attribute (Aligning with users.xsd)
                 if user_id_el is not None:
                     if self.do_fix:
-                        user.set('id', user_id_el.text)
+                        user.set('id', user_id_el.text or "")
                         user.remove(user_id_el)
                         changed = True
                     else:

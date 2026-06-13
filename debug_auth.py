@@ -1,5 +1,5 @@
 from werkzeug.security import check_password_hash
-from lxml import etree
+from lxml import etree  # type: ignore
 import os
 import bcrypt
 
@@ -15,7 +15,7 @@ def test_credential_logic(username, password):
     tree = etree.parse(xml_path)
     # Match app logic: lowercasing the search
     search_name = username.lower()
-    user_element = tree.xpath(f"//user[username='{search_name}']")
+    user_element = tree.xpath(f"//*[local-name()='user'][*[local-name()='username']='{search_name}']")
     
     if not user_element:
         print(f"Result: User '{search_name}' NOT found in XML.")

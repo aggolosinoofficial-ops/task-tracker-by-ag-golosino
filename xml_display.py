@@ -71,7 +71,7 @@ class XMLDisplay:
         try:
             # Try using lxml for validation
             try:
-                from lxml import etree
+                from lxml import etree  # type: ignore
                 
                 print(f"\n✓ Validating XML against XSD...")
                 

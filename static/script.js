@@ -51,7 +51,8 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
         }
 
         // Use provided tasks (filtered) or all tasks from the XML
-        const tasks = tasksToRender || Array.from(taskXmlDoc.getElementsByTagName('task'));
+        // Fix: Use a namespace-agnostic selector to find tasks
+        const tasks = tasksToRender || Array.from(taskXmlDoc.querySelectorAll('*')).filter(el => el.localName === 'task');
 
         // Get current search term for highlighting
         const searchTerm = document.getElementById('taskSearchInput')?.value.trim() || '';
@@ -78,7 +79,13 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
         }
 
         tasks.forEach(task => {
-            const getVal = (tag) => task.getElementsByTagName(tag)[0]?.textContent || '';
+            // Fix: Helper to find child elements regardless of namespace prefix
+            const getVal = (tag) => {
+                const children = Array.from(task.children);
+                const match = children.find(c => c.localName === tag);
+                return match ? match.textContent : '';
+            };
+
             const id = getVal('id');
             const title = getVal('title');
             const description = getVal('description');
@@ -113,7 +120,7 @@ async function renderTasksModern(tasksToRender = null, forceFetch = false) {
                         <small class="text-secondary">📅 ${dueDate || 'No date'}</small>
                         <div class="card-actions">
                             ${isArchiveView ? `
-                                <button type="button" class="btn btn-sm btn-edit" data-action="restore" data-task-id="${id}">Restore</button>
+                                <button type="button" class="btn btn-sm btn-edit" data-action="restore" data-task-id="${id}"><i class="fas fa-undo"></i> Restore</button>
                             ` : `
                                 <button type="button" class="btn btn-sm btn-complete" data-action="toggle" data-task-id="${id}" data-status="${status}">
                                     ${status === 'completed' ? 'Reopen' : 'Done'}
@@ -714,6 +721,8 @@ function restoreAllTasks() {
                 renderTasksModern(null, true);
                 document.dispatchEvent(new CustomEvent('taskUpdated'));
             }
+        // Force insights update immediately
+        updateDashboardSummary();
         })
         .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }
@@ -734,6 +743,8 @@ function restoreSelectedTasks() {
             renderTasksModern(null, true);
             document.dispatchEvent(new CustomEvent('taskUpdated'));
         }
+        // Re-run animation sync to ensure counts match the new state
+        updateDashboardSummary();
     })
     .catch(err => showNotification('✗ Error: ' + err.message, 'error'));
 }

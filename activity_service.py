@@ -1,4 +1,4 @@
-from lxml import etree
+from lxml import etree  # type: ignore
 from datetime import datetime
 
 class ActivityService:

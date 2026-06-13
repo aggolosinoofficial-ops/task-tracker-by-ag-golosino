@@ -2,21 +2,20 @@ import os
 import time
 import threading
 from datetime import datetime
-from lxml import etree
+from lxml import etree  # type: ignore
 import tempfile
+from typing import Dict, Any, Optional
 from io import BytesIO
 from contextlib import nullcontext
 try:
     import portalocker
     HAS_PORTALOCKER = True
-    from portalocker.exceptions import LockException
+    from portalocker.exceptions import LockException # type: ignore
 except ImportError:
     # Fallback if portalocker is not installed (less safe for concurrent writes)
     portalocker = None
     HAS_PORTALOCKER = False
-    # Define a dummy LockException if portalocker is not installed
-    # This ensures that `except LockException` doesn't cause a NameError
-    class LockException(Exception):
+    class LockException(Exception): # type: ignore
         pass
 
 # Module-level constants for retry mechanism
@@ -29,8 +28,8 @@ class XMLService:
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_dir = os.path.join(self.base_dir, 'data')
         self.schema_dir = os.path.join(self.base_dir, 'schema')
-        self._cache = {}          # Phase 3: Memory Caching
-        self._last_load = {}      # Track file mtimes for cache invalidation
+        self._cache: Dict[str, Any] = {}          # Phase 3: Memory Caching
+        self._last_load: Dict[str, float] = {}      # Track file mtimes for cache invalidation
         self._schemas = {}        # Pre-compiled schemas
         self._cache_lock = threading.Lock() # Protect internal cache dictionaries
         if not os.path.exists(self.data_dir): os.makedirs(self.data_dir)
@@ -55,10 +54,10 @@ class XMLService:
                     # 1. Check age
                     if (time.time() - os.path.getmtime(lock_path)) > expiry_seconds:
                         # 2. Try to acquire exclusive lock to ensure it's not in use
-                        if HAS_PORTALOCKER:
+                        if HAS_PORTALOCKER and portalocker is not None:
                             try:
-                                with portalocker.Lock(lock_path, timeout=0.1, 
-                                                     flags=portalocker.LOCK_EX | portalocker.LOCK_NB):
+                                with portalocker.Lock(lock_path, timeout=0.1,  # type: ignore
+                                                     flags=portalocker.LOCK_EX | portalocker.LOCK_NB): # type: ignore
                                     os.remove(lock_path)
                                     cleaned_count += 1
                                     print(f"[XMLService] Cleaned orphaned lock: {filename}")
@@ -200,10 +199,13 @@ class XMLService:
 
         try:
             parser = etree.XMLParser(remove_blank_text=True)
-            context = etree.iterparse(BytesIO(xml_data), events=('end',), tag=tag_name, parser=parser)
+            # Pass tag=None to handle both namespaced and non-namespaced tags manually
+            context = etree.iterparse(BytesIO(xml_data), events=('end',), tag=None, parser=parser)
             for event, elem in context:
-                yield elem
-                elem.clear()
+                # Match the local name to stay namespace-agnostic
+                if etree.QName(elem).localname == tag_name:
+                    yield elem
+                    elem.clear()
                 parent = elem.getparent()
                 if parent is not None:
                     while elem.getprevious() is not None:
@@ -214,10 +216,10 @@ class XMLService:
 
     def _lock_file(self, path, shared=False):
         """Internal helper to lock a file. Shared for reading, Exclusive for writing."""
-        if HAS_PORTALOCKER:
-            flags = portalocker.LOCK_SH if shared else portalocker.LOCK_EX
+        if HAS_PORTALOCKER and portalocker is not None:
+            flags = portalocker.LOCK_SH if shared else portalocker.LOCK_EX # type: ignore
             # Lock a sidecar .lock file to avoid Access Denied during os.replace on Windows
-            return portalocker.Lock(path + ".lock", timeout=5, flags=flags)
+            return portalocker.Lock(path + ".lock", timeout=5, flags=flags) # type: ignore
         return None
 
     def apply_xslt(self, xml_filename, xsl_filename, **params):
@@ -258,15 +260,16 @@ class XMLService:
                 
                 if "tasks" in filename or "archive_tasks" in filename:
                     order = ['id', 'user_id', 'assigned_to', 'title', 'description', 'status', 'created_at', 'priority', 'due_date', 'last_updated', 'archived_at']
-                    tag_name = './/task'
+                    tag_name = './/*[local-name()="task"]'
                 elif "users" in filename:
                     order = ['id', 'username', 'password_hash', 'role', 'created_at']
-                    tag_name = './/user'
+                    tag_name = './/*[local-name()="user"]'
 
                 if order and tag_name:
                     for item in tree.xpath(tag_name):
-                        elements = {child.tag: child for child in item}
-                        for child in list(item):
+                        # Use QName to get localname so we can match against the 'order' list
+                        elements = {etree.QName(child).localname: child for child in item}
+                        for child in list(item): # type: ignore
                             item.remove(child)
                         for tag in order:
                             if tag in elements:
@@ -329,7 +332,7 @@ class XMLService:
                 # On Windows, we only attempt to remove the lock if we can acquire 
                 # it exclusively, meaning no other thread is currently queued/waiting.
                 try:
-                    with portalocker.Lock(lock_file_path, timeout=0.1, flags=portalocker.LOCK_EX | portalocker.LOCK_NB):
+                    with portalocker.Lock(lock_file_path, timeout=0.1, flags=portalocker.LOCK_EX | portalocker.LOCK_NB): # type: ignore
                         os.remove(lock_file_path)
                         print(f"[XMLService] Cleanup: Removed {os.path.basename(lock_file_path)}")
                 except (LockException, OSError):
@@ -351,6 +354,28 @@ class XMLService:
                 max_id = max(max_id, int(val))
         return str(max_id + 1) if found else "1"
 
+    def validate_existing_file(self, filename):
+        """
+        Performs a full validation of an existing XML file against its XSD.
+        Returns (is_valid, error_list).
+        """
+        xml_path, _ = self._get_paths(filename)
+        if not os.path.exists(xml_path):
+            return False, ["File does not exist."]
+            
+        schema_key = "tasks" if "tasks" in filename else filename
+        if schema_key not in self._schemas:
+            return True, ["No schema found for this file type."]
+
+        try:
+            tree = self.get_element_tree(filename)
+            self._schemas[schema_key].assertValid(tree)
+            return True, []
+        except etree.DocumentInvalid as e:
+            return False, [str(error) for error in e.error_log]
+        except Exception as e:
+            return False, [str(e)]
+
     def get_health_status(self, include_all=False):
         """Analyzes storage health, identifying lingering locks or storage issues."""
         health = {
@@ -367,7 +392,7 @@ class XMLService:
             lock_path = xml_path + ".lock"
             
             exists = os.path.exists(xml_path)
-            file_info = {'exists': exists}
+            file_info: Dict[str, Any] = {'exists': exists}
             if exists:
                 file_info['size_kb'] = round(os.path.getsize(xml_path) / 1024, 2)
                 file_info['last_modified'] = datetime.fromtimestamp(os.path.getmtime(xml_path)).isoformat()

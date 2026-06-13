@@ -3,23 +3,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- JS Layout Optimization (Senior Dev Strategy) ---
     function adjustNavbar() {
-        const sidebar = document.querySelector('.sidebar');
-        const mainContent = document.querySelector('.main') || document.querySelector('.dashboard-container');
-        if (!sidebar || !mainContent) return;
-
-        const width = window.innerWidth;
-        if (width <= 768) {
-            // Mobile / Tablet Portrait
-            sidebar.classList.add('topbar');
-            if (!sidebar.classList.contains('mobile-expanded')) sidebar.classList.remove('sidebar-hover');
-            mainContent.style.marginTop = '60px';
-        } else {
-            // Desktop
-            sidebar.classList.remove('topbar');
-            sidebar.classList.add('sidebar-hover');
-            mainContent.style.marginTop = '0';
-            mainContent.style.marginLeft = '60px';
-        }
+        // Clean up any stray inline styles from previous versions
+        // Future layout logic moves to pure CSS media queries
     }
 
     // --- Hamburger Menu Toggle ---
@@ -31,7 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Change icon between Hamburger (☰) and Close (✕)
             const icon = mobileNavToggle.querySelector('i') || mobileNavToggle;
-            icon.textContent = sidebar.classList.contains('mobile-expanded') ? '✕' : '☰';
+            icon.className = sidebar.classList.contains('mobile-expanded') ? 'fas fa-times' : 'fas fa-bars';
+            if (!icon.classList.contains('fas')) icon.textContent = sidebar.classList.contains('mobile-expanded') ? '✕' : '☰';
         });
     }
 

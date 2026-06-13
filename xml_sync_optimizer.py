@@ -18,9 +18,11 @@ from datetime import datetime, timedelta
 import argparse
 import logging
 try:
+    portalocker = None
     import portalocker
     HAS_PORTALOCKER = True
 except ImportError:
+    portalocker = None
     HAS_PORTALOCKER = False
 
 # Configure logging (minimal overhead)
@@ -72,7 +74,7 @@ class XMLOptimizer:
 
             # Use a sidecar lock if portalocker is available to match XMLService behavior
             lock_path = filename + ".lock"
-            lock = portalocker.Lock(lock_path, timeout=5) if HAS_PORTALOCKER else None
+            lock = portalocker.Lock(lock_path, timeout=5) if (HAS_PORTALOCKER and portalocker is not None) else None
 
             def perform_write():
                 tree.write(filename, encoding='utf-8', xml_declaration=True)

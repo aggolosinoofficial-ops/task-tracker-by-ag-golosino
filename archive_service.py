@@ -1,4 +1,4 @@
-from lxml import etree
+from lxml import etree  # type: ignore
 from datetime import datetime
 import copy
 
@@ -9,9 +9,9 @@ class ArchiveService:
         self.archive_file = "archive_tasks" # Updated to match documentation
 
     def get_archived_task(self, task_id, user_id=None):
-        xpath = "//task[normalize-space(id)=$tid]"
+        xpath = "//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid]"
         if user_id:
-            xpath += "[user_id=$uid]"
+            xpath += "[*[local-name()='user_id']=$uid]"
             
         nodes = self.xml.find_all(self.archive_file, xpath, tid=task_id, uid=str(user_id))
         return self._element_to_dict(nodes[0]) if nodes else None
@@ -25,15 +25,15 @@ class ArchiveService:
         root = tree.getroot()
         
         # Find the specific task using XPath
-        task_nodes = root.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
+        task_nodes = root.xpath("//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid or normalize-space(@id)=$tid]", tid=task_id)
         if not task_nodes:
             return False, "Task not found."
         
         task_node = task_nodes[0]
         
         # Permission check: User must be creator or the assigned user
-        user_id_val = (task_node.findtext('user_id') or "").strip()
-        assigned_to = (task_node.findtext('assigned_to') or "").strip()
+        user_id_val = task_node.xpath("string(*[local-name()='user_id'])").strip()
+        assigned_to = task_node.xpath("string(*[local-name()='assigned_to'])").strip()
         if not is_admin and str(user_id) not in [user_id_val, assigned_to]:
             return False, "Permission denied."
 
@@ -66,15 +66,15 @@ class ArchiveService:
         archive_tree = self.xml.get_element_tree(self.archive_file)
         archive_root = archive_tree.getroot()
         
-        task_nodes = archive_root.xpath("//task[normalize-space(id)=$tid]", tid=task_id)
+        task_nodes = archive_root.xpath("//*[local-name()='task'][normalize-space(*[local-name()='id'])=$tid or normalize-space(@id)=$tid]", tid=task_id)
         if not task_nodes:
             return False, "Archived task not found."
             
         task_node = task_nodes[0]
         
         # Ownership check (typically based on original creator)
-        user_id_val = (task_node.findtext('user_id') or "").strip()
-        assigned_to = (task_node.findtext('assigned_to') or "").strip()
+        user_id_val = task_node.xpath("string(*[local-name()='user_id'])").strip()
+        assigned_to = task_node.xpath("string(*[local-name()='assigned_to'])").strip()
         if not is_admin and str(user_id) not in [user_id_val, assigned_to]:
             return False, "Permission denied."
             
@@ -112,14 +112,14 @@ class ArchiveService:
         # Build XPath for target tasks
         if task_ids:
             # Restore specific IDs
-            xpath = "//task[" + " or ".join([f"id='{tid}'" for tid in task_ids]) + "]"
+            xpath = "//*[local-name()='task'][" + " or ".join([f"*[local-name()='id']='{tid}' or @id='{tid}'" for tid in task_ids]) + "]"
         else:
             # Restore all
-            xpath = "//task"
+            xpath = "//*[local-name()='task']"
             
         variables = {}
         if not is_admin:
-            xpath += "[user_id=$uid or assigned_to=$uid]"
+            xpath += "[*[local-name()='user_id']=$uid or *[local-name()='assigned_to']=$uid]"
             variables['uid'] = str(user_id)
             
         nodes = archive_root.xpath(xpath, **variables)
@@ -152,5 +152,6 @@ class ArchiveService:
     def _element_to_dict(self, el):
         data = {}
         for child in el:
-            data[child.tag] = child.text.strip() if child.text else ""
+            local_tag = etree.QName(child).localname
+            data[local_tag] = child.text.strip() if child.text else ""
         return data

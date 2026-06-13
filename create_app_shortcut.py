@@ -32,18 +32,18 @@ def create_flask_shortcut():
 
         # 3. Configure the shortcut properties
         # Target: python.exe, Argument: app.py
-        shortcut.SetPath(python_exe)
-        shortcut.SetArguments(f'"{app_script}"')
-        shortcut.SetWorkingDirectory(project_dir)
-        shortcut.SetDescription("Launch Task Tracker Flask App")
+        shortcut.SetPath(python_exe)  # type: ignore
+        shortcut.SetArguments(f'"{app_script}"')  # type: ignore
+        shortcut.SetWorkingDirectory(project_dir)  # type: ignore
+        shortcut.SetDescription("Launch Task Tracker Flask App")  # type: ignore
 
         # 3.5 Set the custom icon if the file exists
         if os.path.exists(icon_path):
-            shortcut.SetIconLocation(icon_path, 0)
+            shortcut.SetIconLocation(icon_path, 0)  # type: ignore
 
         # 4. Save the shortcut to disk via the IPersistFile interface
         persist_file = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
-        persist_file.Save(shortcut_path, 0)
+        persist_file.Save(shortcut_path, 0)  # type: ignore
         print(f"[✓] Shortcut created successfully on Desktop: {shortcut_path}")
 
         # 5. Attempt to pin to Taskbar
